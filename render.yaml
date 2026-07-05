@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: app-hogar
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DB_PATH
+        value: /var/data/database.sqlite
+    disk:
+      name: datos
+      mountPath: /var/data
+      sizeGB: 1
