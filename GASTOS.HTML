@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gastos e Ingresos</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-100 min-h-screen">
+
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+
+        <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8">
+
+            <h1 class="text-4xl font-bold text-center text-emerald-700 mb-2">
+                💶 Gastos e Ingresos
+            </h1>
+
+            <p class="text-center text-gray-500 mb-8">
+                Controla el dinero que entra y sale cada mes
+            </p>
+
+            <!-- Formulario -->
+            <div class="grid md:grid-cols-5 gap-4 mb-4">
+
+                <div class="md:col-span-1 flex rounded-xl overflow-hidden border">
+                    <button
+                        type="button"
+                        id="tipoGastoBtn"
+                        onclick="setTipo('gasto')"
+                        class="flex-1 py-3 font-semibold transition"
+                    >
+                        Gasto
+                    </button>
+                    <button
+                        type="button"
+                        id="tipoIngresoBtn"
+                        onclick="setTipo('ingreso')"
+                        class="flex-1 py-3 font-semibold transition"
+                    >
+                        Ingreso
+                    </button>
+                </div>
+
+                <input
+                    type="date"
+                    id="fechaInput"
+                    class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+
+                <select
+                    id="categoriaInput"
+                    class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                    <option value="Compra">Compra</option>
+                    <option value="Hugo">Hugo</option>
+                    <option value="Adai">Adai</option>
+                    <option value="Luz">Luz</option>
+                </select>
+
+                <input
+                    type="number"
+                    id="importeInput"
+                    placeholder="Importe (€)"
+                    step="0.01"
+                    min="0"
+                    class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+
+                <button
+                    onclick="addGasto()"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition duration-300 shadow-lg"
+                >
+                    ➕ Añadir
+                </button>
+
+            </div>
+
+            <!-- Resumen del mes -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 mb-6">
+
+                <div class="bg-red-100 p-4 rounded-xl text-center">
+                    <div class="text-2xl font-bold text-red-700" id="totalGastos">0,00 €</div>
+                    <div class="text-sm text-gray-600">Total gastos (filtro actual)</div>
+                </div>
+
+                <div class="bg-green-100 p-4 rounded-xl text-center">
+                    <div class="text-2xl font-bold text-green-700" id="totalIngresos">0,00 €</div>
+                    <div class="text-sm text-gray-600">Total ingresos (filtro actual)</div>
+                </div>
+
+                <div class="bg-blue-100 p-4 rounded-xl text-center">
+                    <div class="text-2xl font-bold text-blue-700" id="balance">0,00 €</div>
+                    <div class="text-sm text-gray-600">Balance</div>
+                </div>
+
+            </div>
+
+            <!-- Filtros -->
+            <div class="grid md:grid-cols-2 gap-4 mb-6">
+
+                <input
+                    type="month"
+                    id="filterMonth"
+                    onchange="renderGastos()"
+                    class="border rounded-xl px-4 py-3"
+                >
+
+                <select
+                    id="filterCategoria"
+                    onchange="renderGastos()"
+                    class="border rounded-xl px-4 py-3"
+                >
+                    <option value="all">Todas las categorías</option>
+                    <option value="Compra">Compra</option>
+                    <option value="Hugo">Hugo</option>
+                    <option value="Adai">Adai</option>
+                    <option value="Luz">Luz</option>
+                </select>
+
+            </div>
+
+            <!-- Lista -->
+            <div id="gastosList" class="space-y-3"></div>
+
+        </div>
+
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+        getFirestore, collection, addDoc, deleteDoc, doc,
+        onSnapshot, query, orderBy
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // ============================================================
+    // PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE (la misma que en
+    // COMPRA.HTML y TAREAS.HTML)
+    // ============================================================
+    const firebaseConfig = {
+        apiKey: "TU_API_KEY",
+        authDomain: "TU_PROYECTO.firebaseapp.com",
+        projectId: "TU_PROYECTO",
+        storageBucket: "TU_PROYECTO.appspot.com",
+        messagingSenderId: "TU_SENDER_ID",
+        appId: "TU_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const gastosCol = collection(db, "gastos");
+
+    let gastos = [];
+    let tipoActual = "gasto";
+
+    // ---------- Utilidad: fecha local en formato YYYY-MM-DD (evita el bug de UTC) ----------
+    function toLocalDateString(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    // ---------- Fecha por defecto: hoy (hora local) ----------
+    const fechaInput = document.getElementById("fechaInput");
+    const hoy = new Date();
+    fechaInput.value = toLocalDateString(hoy);
+
+    // Filtro de mes por defecto: el mes actual (hora local)
+    document.getElementById("filterMonth").value = toLocalDateString(hoy).slice(0, 7);
+
+    function formatMoney(n) {
+        return n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+    }
+
+    function getCategoriaColor(categoria) {
+        switch (categoria) {
+            case "Compra":
+                return "bg-blue-100 text-blue-800";
+            case "Hugo":
+                return "bg-purple-100 text-purple-800";
+            case "Adai":
+                return "bg-orange-100 text-orange-800";
+            case "Luz":
+                return "bg-yellow-100 text-yellow-800";
+            default:
+                return "bg-gray-100 text-gray-700";
+        }
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // ---------- Selector Gasto / Ingreso ----------
+    window.setTipo = function (tipo) {
+        tipoActual = tipo;
+        const gastoBtn = document.getElementById("tipoGastoBtn");
+        const ingresoBtn = document.getElementById("tipoIngresoBtn");
+
+        if (tipo === "gasto") {
+            gastoBtn.className = "flex-1 py-3 font-semibold transition bg-red-500 text-white";
+            ingresoBtn.className = "flex-1 py-3 font-semibold transition bg-gray-100 text-gray-600";
+        } else {
+            gastoBtn.className = "flex-1 py-3 font-semibold transition bg-gray-100 text-gray-600";
+            ingresoBtn.className = "flex-1 py-3 font-semibold transition bg-green-500 text-white";
+        }
+    };
+    setTipo("gasto");
+
+    // ---------- Añadir ----------
+    window.addGasto = async function () {
+        const fecha = fechaInput.value;
+        const categoria = document.getElementById("categoriaInput").value;
+        const importe = parseFloat(document.getElementById("importeInput").value);
+
+        if (!fecha) {
+            alert("Selecciona una fecha");
+            return;
+        }
+        if (isNaN(importe) || importe <= 0) {
+            alert("Introduce un importe válido");
+            return;
+        }
+
+        await addDoc(gastosCol, {
+            tipo: tipoActual,
+            fecha,
+            categoria,
+            importe,
+            createdAt: Date.now()
+        });
+
+        document.getElementById("importeInput").value = "";
+    };
+
+    // ---------- Eliminar ----------
+    window.deleteGasto = async function (id) {
+        await deleteDoc(doc(db, "gastos", id));
+    };
+
+    // ---------- Render + filtros + sumas ----------
+    window.renderGastos = function () {
+        const list = document.getElementById("gastosList");
+        const monthFilter = document.getElementById("filterMonth").value; // "YYYY-MM"
+        const categoriaFilter = document.getElementById("filterCategoria").value;
+
+        let filtered = [...gastos];
+
+        if (monthFilter) {
+            filtered = filtered.filter(g => g.fecha && g.fecha.startsWith(monthFilter));
+        }
+
+        if (categoriaFilter !== "all") {
+            filtered = filtered.filter(g => g.categoria === categoriaFilter);
+        }
+
+        const totalGastos = filtered
+            .filter(g => g.tipo === "gasto")
+            .reduce((sum, g) => sum + g.importe, 0);
+
+        const totalIngresos = filtered
+            .filter(g => g.tipo === "ingreso")
+            .reduce((sum, g) => sum + g.importe, 0);
+
+        document.getElementById("totalGastos").textContent = formatMoney(totalGastos);
+        document.getElementById("totalIngresos").textContent = formatMoney(totalIngresos);
+        document.getElementById("balance").textContent = formatMoney(totalIngresos - totalGastos);
+
+        if (filtered.length === 0) {
+            list.innerHTML = `
+                <div class="bg-gray-50 rounded-2xl p-8 text-center text-gray-500">
+                    No hay movimientos que coincidan con los filtros.
+                </div>
+            `;
+            return;
+        }
+
+        // Más recientes primero (por fecha)
+        filtered.sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+
+        list.innerHTML = filtered.map(g => `
+            <div class="bg-gray-50 rounded-2xl p-4 shadow-md hover:shadow-lg transition">
+                <div class="flex flex-col md:flex-row md:items-center gap-3">
+
+                    <span class="text-sm text-gray-500 md:w-28">${g.fecha}</span>
+
+                    <span class="px-3 py-1 rounded-full text-sm font-semibold ${getCategoriaColor(g.categoria)}">
+                        ${escapeHtml(g.categoria)}
+                    </span>
+
+                    <span class="px-3 py-1 rounded-full text-sm font-semibold ${g.tipo === 'gasto' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
+                        ${g.tipo === 'gasto' ? 'Gasto' : 'Ingreso'}
+                    </span>
+
+                    <span class="flex-1 text-right md:text-left font-bold text-lg ${g.tipo === 'gasto' ? 'text-red-600' : 'text-green-600'}">
+                        ${g.tipo === 'gasto' ? '-' : '+'}${formatMoney(g.importe)}
+                    </span>
+
+                    <button
+                        onclick="deleteGasto('${g.id}')"
+                        class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                    >
+                        🗑️ Eliminar
+                    </button>
+
+                </div>
+            </div>
+        `).join("");
+    };
+
+    // Escucha en tiempo real
+    const q = query(gastosCol, orderBy("createdAt", "desc"));
+    onSnapshot(q, snapshot => {
+        gastos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderGastos();
+    });
+</script>
+
+</body>
+</html>
