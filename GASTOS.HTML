@@ -22,7 +22,7 @@
             </p>
 
             <!-- Formulario -->
-            <div class="grid md:grid-cols-5 gap-4 mb-4">
+            <div class="grid md:grid-cols-6 gap-4 mb-4">
 
                 <div class="md:col-span-1 flex rounded-xl overflow-hidden border">
                     <button
@@ -53,11 +53,24 @@
                     id="categoriaInput"
                     class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
-                    <option value="Compra">Compra</option>
-                    <option value="Hugo">Hugo</option>
-                    <option value="Adai">Adai</option>
+                    <option value="Colegios">Colegios</option>
+                    <option value="Telefono">Teléfono</option>
+                    <option value="Coches">Coches</option>
+                    <option value="Supermercados">Supermercados</option>
                     <option value="Luz">Luz</option>
+                    <option value="Agua">Agua</option>
+                    <option value="Ocio">Ocio</option>
+                    <option value="Salud">Salud</option>
+                    <option value="Ropa">Ropa</option>
+                    <option value="Hogar">Hogar</option>
                 </select>
+
+                <input
+                    type="text"
+                    id="descripcionInput"
+                    placeholder="Descripción..."
+                    class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
 
                 <input
                     type="number"
@@ -113,10 +126,16 @@
                     class="border rounded-xl px-4 py-3"
                 >
                     <option value="all">Todas las categorías</option>
-                    <option value="Compra">Compra</option>
-                    <option value="Hugo">Hugo</option>
-                    <option value="Adai">Adai</option>
+                    <option value="Colegios">Colegios</option>
+                    <option value="Telefono">Teléfono</option>
+                    <option value="Coches">Coches</option>
+                    <option value="Supermercados">Supermercados</option>
                     <option value="Luz">Luz</option>
+                    <option value="Agua">Agua</option>
+                    <option value="Ocio">Ocio</option>
+                    <option value="Salud">Salud</option>
+                    <option value="Ropa">Ropa</option>
+                    <option value="Hogar">Hogar</option>
                 </select>
 
             </div>
@@ -177,14 +196,26 @@
 
     function getCategoriaColor(categoria) {
         switch (categoria) {
-            case "Compra":
+            case "Colegios":
                 return "bg-blue-100 text-blue-800";
-            case "Hugo":
+            case "Telefono":
                 return "bg-purple-100 text-purple-800";
-            case "Adai":
+            case "Coches":
+                return "bg-slate-200 text-slate-800";
+            case "Supermercados":
                 return "bg-orange-100 text-orange-800";
             case "Luz":
                 return "bg-yellow-100 text-yellow-800";
+            case "Agua":
+                return "bg-cyan-100 text-cyan-800";
+            case "Ocio":
+                return "bg-pink-100 text-pink-800";
+            case "Salud":
+                return "bg-red-100 text-red-800";
+            case "Ropa":
+                return "bg-indigo-100 text-indigo-800";
+            case "Hogar":
+                return "bg-teal-100 text-teal-800";
             default:
                 return "bg-gray-100 text-gray-700";
         }
@@ -216,6 +247,7 @@
     window.addGasto = async function () {
         const fecha = fechaInput.value;
         const categoria = document.getElementById("categoriaInput").value;
+        const descripcion = document.getElementById("descripcionInput").value.trim();
         const importe = parseFloat(document.getElementById("importeInput").value);
 
         if (!fecha) {
@@ -231,10 +263,12 @@
             tipo: tipoActual,
             fecha,
             categoria,
+            descripcion,
             importe,
             createdAt: Date.now()
         });
 
+        document.getElementById("descripcionInput").value = "";
         document.getElementById("importeInput").value = "";
     };
 
@@ -297,7 +331,11 @@
                         ${g.tipo === 'gasto' ? 'Gasto' : 'Ingreso'}
                     </span>
 
-                    <span class="flex-1 text-right md:text-left font-bold text-lg ${g.tipo === 'gasto' ? 'text-red-600' : 'text-green-600'}">
+                    <span class="flex-1 text-gray-600 text-sm italic">
+                        ${g.descripcion ? escapeHtml(g.descripcion) : ''}
+                    </span>
+
+                    <span class="text-right md:text-left font-bold text-lg ${g.tipo === 'gasto' ? 'text-red-600' : 'text-green-600'}">
                         ${g.tipo === 'gasto' ? '-' : '+'}${formatMoney(g.importe)}
                     </span>
 
