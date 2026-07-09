@@ -27,12 +27,18 @@
       </button>
     </div>
 
-    <!-- Botón limpiar marcados -->
-    <div class="flex justify-between items-center mb-3">
-      <button onclick="clearChecked()"
-              class="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg transition">
-        Vaciar comprados
-      </button>
+    <!-- Botones de acción -->
+    <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+      <div class="flex gap-2">
+        <button onclick="clearChecked()"
+                class="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg transition">
+          Vaciar comprados
+        </button>
+        <button onclick="finalizarCompra()"
+                class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg transition">
+          ✅ Finalizar compra
+        </button>
+      </div>
 
       <span id="counter" class="text-sm text-gray-500"></span>
     </div>
@@ -54,17 +60,18 @@
     // panel de Firebase al registrar tu app web)
     // ============================================================
     const firebaseConfig = {
-      apiKey: "AIzaSyDT8Zmbv2WNiAem_WpGbQTIFd9skWCkf2Q",
-      authDomain: "javilyn-f9d54.firebaseapp.com",
-      projectId: "javilyn-f9d54",
-      storageBucket: "javilyn-f9d54.firebasestorage.app",
-      messagingSenderId: "961900478002",
-      appId: "1:961900478002:web:652e75b65010a46f4f462b"
+      apiKey: "TU_API_KEY",
+      authDomain: "TU_PROYECTO.firebaseapp.com",
+      projectId: "TU_PROYECTO",
+      storageBucket: "TU_PROYECTO.appspot.com",
+      messagingSenderId: "TU_SENDER_ID",
+      appId: "TU_APP_ID"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const itemsCol = collection(db, "items");
+    const gastosCol = collection(db, "gastos");
 
     const listEl = document.getElementById("list");
     const input = document.getElementById("itemInput");
@@ -95,6 +102,38 @@
       const q = query(itemsCol, where("checked", "==", true));
       const snap = await getDocs(q);
       await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    };
+
+    function toLocalDateString(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    window.finalizarCompra = async function () {
+      const descripcion = prompt("Descripción del gasto:", "Compra semanal");
+      if (descripcion === null) return; // cancelado
+
+      const precioStr = prompt("Precio total (€):");
+      if (precioStr === null) return; // cancelado
+
+      const importe = parseFloat(precioStr.replace(",", "."));
+      if (isNaN(importe) || importe <= 0) {
+        alert("Precio no válido, no se ha añadido el gasto.");
+        return;
+      }
+
+      await addDoc(gastosCol, {
+        tipo: "gasto",
+        fecha: toLocalDateString(new Date()),
+        categoria: "Supermercados",
+        descripcion: descripcion.trim(),
+        importe,
+        createdAt: Date.now()
+      });
+
+      alert("Gasto añadido a Gastos e Ingresos ✅");
     };
 
     function renderList(items) {
@@ -132,9 +171,10 @@
 
     // Escucha en tiempo real: cualquier cambio (tuyo o de la otra persona)
     // actualiza la lista al instante, sin recargar la página.
-    const q = query(itemsCol, orderBy("createdAt", "asc"));
-    onSnapshot(q, snapshot => {
+    // Se ordena alfabéticamente (localeCompare respeta acentos/mayúsculas en español).
+    onSnapshot(itemsCol, snapshot => {
       const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      items.sort((a, b) => a.text.localeCompare(b.text, "es", { sensitivity: "base" }));
       renderList(items);
     });
 

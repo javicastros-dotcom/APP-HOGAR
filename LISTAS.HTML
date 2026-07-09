@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis Listas</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        .completed {
+            text-decoration: line-through;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-violet-100 via-fuchsia-50 to-indigo-100 min-h-screen">
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+
+        <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8">
+
+            <h1 class="text-4xl font-bold text-center text-violet-700 mb-2">
+                📝 Mis Listas
+            </h1>
+
+            <p class="text-center text-gray-500 mb-8" id="subtitle">
+                Crea listas de cosas (regalos, viajes, pendientes...) y gestiona sus elementos
+            </p>
+
+            <!-- ============ VISTA: LISTADO DE LISTAS ============ -->
+            <div id="viewListas">
+
+                <!-- Formulario nueva lista -->
+                <div class="grid md:grid-cols-3 gap-4 mb-8">
+                    <input
+                        type="text"
+                        id="nombreListaInput"
+                        placeholder="Nombre de la lista..."
+                        class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
+                    <input
+                        type="text"
+                        id="descripcionListaInput"
+                        placeholder="Descripción (opcional)..."
+                        class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
+                    <button
+                        onclick="crearLista()"
+                        class="bg-violet-600 hover:bg-violet-700 text-white font-semibold py-3 rounded-xl transition shadow-lg"
+                    >
+                        ➕ Crear lista
+                    </button>
+                </div>
+
+                <div id="listasGrid" class="grid md:grid-cols-2 gap-5"></div>
+
+            </div>
+
+            <!-- ============ VISTA: DETALLE DE UNA LISTA ============ -->
+            <div id="viewDetalle" class="hidden">
+
+                <button onclick="volverAListas()" class="text-violet-600 hover:text-violet-800 font-semibold mb-4 flex items-center gap-1">
+                    ← Volver a mis listas
+                </button>
+
+                <div class="bg-violet-50 rounded-2xl p-4 mb-6">
+                    <h2 id="detalleNombre" class="text-2xl font-bold text-gray-800"></h2>
+                    <p id="detalleDescripcion" class="text-gray-500"></p>
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <input
+                        type="text"
+                        id="itemInput"
+                        placeholder="Añadir elemento..."
+                        class="flex-1 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
+                    <button
+                        onclick="addItem()"
+                        class="bg-violet-600 hover:bg-violet-700 text-white px-5 rounded-xl transition"
+                    >
+                        Añadir
+                    </button>
+                </div>
+
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
+                    <div class="flex gap-2">
+                        <button
+                            onclick="desmarcarTodos()"
+                            class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-lg transition"
+                        >
+                            🔄 Desmarcar todos
+                        </button>
+                        <button
+                            id="hideCheckedBtn"
+                            onclick="toggleHideChecked()"
+                            class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-lg transition"
+                        >
+                            🙈 Ocultar marcados
+                        </button>
+                    </div>
+                    <span id="itemCounter" class="text-sm text-gray-500"></span>
+                </div>
+
+                <ul id="itemsList" class="space-y-2"></ul>
+
+            </div>
+
+        </div>
+
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+        getFirestore, collection, addDoc, updateDoc, deleteDoc, doc,
+        onSnapshot, query, orderBy, writeBatch, getDocs
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDT8Zmbv2WNiAem_WpGbQTIFd9skWCkf2Q",
+        authDomain: "javilyn-f9d54.firebaseapp.com",
+        projectId: "javilyn-f9d54",
+        storageBucket: "javilyn-f9d54.firebasestorage.app",
+        messagingSenderId: "961900478002",
+        appId: "1:961900478002:web:652e75b65010a46f4f462b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const listasCol = collection(db, "listas");
+
+    let listas = [];
+    let currentListaId = null;
+    let currentItems = [];
+    let hideChecked = false;
+    let unsubscribeItems = null;
+
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // ================= VISTAS =================
+    function mostrarVistaListas() {
+        document.getElementById("viewListas").classList.remove("hidden");
+        document.getElementById("viewDetalle").classList.add("hidden");
+        document.getElementById("subtitle").textContent =
+            "Crea listas de cosas (regalos, viajes, pendientes...) y gestiona sus elementos";
+    }
+
+    function mostrarVistaDetalle() {
+        document.getElementById("viewListas").classList.add("hidden");
+        document.getElementById("viewDetalle").classList.remove("hidden");
+    }
+
+    // ================= LISTAS =================
+    window.crearLista = async function () {
+        const nombreInput = document.getElementById("nombreListaInput");
+        const descripcionInput = document.getElementById("descripcionListaInput");
+
+        const nombre = nombreInput.value.trim();
+        const descripcion = descripcionInput.value.trim();
+
+        if (!nombre) {
+            alert("Ponle un nombre a la lista");
+            return;
+        }
+
+        await addDoc(listasCol, { nombre, descripcion, createdAt: Date.now() });
+
+        nombreInput.value = "";
+        descripcionInput.value = "";
+    };
+
+    window.eliminarLista = async function (id, event) {
+        event.stopPropagation();
+        if (!confirm("¿Eliminar esta lista y todos sus elementos?")) return;
+
+        // Borrar primero los elementos de la sub-colección
+        const itemsSnap = await getDocs(collection(db, "listas", id, "items"));
+        const batch = writeBatch(db);
+        itemsSnap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+
+        await deleteDoc(doc(db, "listas", id));
+
+        if (currentListaId === id) volverAListas();
+    };
+
+    window.abrirLista = function (id) {
+        const lista = listas.find(l => l.id === id);
+        if (!lista) return;
+
+        currentListaId = id;
+        hideChecked = false;
+        updateHideCheckedBtn();
+
+        document.getElementById("detalleNombre").textContent = lista.nombre;
+        document.getElementById("detalleDescripcion").textContent = lista.descripcion || "";
+
+        mostrarVistaDetalle();
+
+        if (unsubscribeItems) unsubscribeItems();
+
+        const itemsCol = collection(db, "listas", id, "items");
+        const q = query(itemsCol, orderBy("createdAt", "asc"));
+        unsubscribeItems = onSnapshot(q, snapshot => {
+            currentItems = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            renderItems();
+        });
+    };
+
+    window.volverAListas = function () {
+        if (unsubscribeItems) {
+            unsubscribeItems();
+            unsubscribeItems = null;
+        }
+        currentListaId = null;
+        mostrarVistaListas();
+    };
+
+    function renderListas() {
+        const grid = document.getElementById("listasGrid");
+
+        if (listas.length === 0) {
+            grid.innerHTML = `
+                <div class="md:col-span-2 bg-gray-50 rounded-2xl p-8 text-center text-gray-500">
+                    Todavía no has creado ninguna lista.
+                </div>
+            `;
+            return;
+        }
+
+        grid.innerHTML = listas.map(l => `
+            <div
+                onclick="abrirLista('${l.id}')"
+                class="bg-gray-50 hover:bg-violet-50 border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition cursor-pointer"
+            >
+                <div class="flex justify-between items-start gap-2">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-800">${escapeHtml(l.nombre)}</h3>
+                        ${l.descripcion ? `<p class="text-sm text-gray-500 mt-1">${escapeHtml(l.descripcion)}</p>` : ""}
+                    </div>
+                    <button
+                        onclick="eliminarLista('${l.id}', event)"
+                        class="text-red-400 hover:text-red-600 font-semibold shrink-0"
+                        title="Eliminar lista"
+                    >
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    // ================= ITEMS =================
+    window.addItem = async function () {
+        const input = document.getElementById("itemInput");
+        const texto = input.value.trim();
+        if (!texto || !currentListaId) return;
+
+        input.value = "";
+
+        await addDoc(collection(db, "listas", currentListaId, "items"), {
+            texto,
+            checked: false,
+            createdAt: Date.now()
+        });
+    };
+
+    window.toggleItem = async function (id, currentlyChecked) {
+        await updateDoc(doc(db, "listas", currentListaId, "items", id), { checked: !currentlyChecked });
+    };
+
+    window.deleteItem = async function (id) {
+        await deleteDoc(doc(db, "listas", currentListaId, "items", id));
+    };
+
+    window.desmarcarTodos = async function () {
+        const batch = writeBatch(db);
+        currentItems.forEach(item => {
+            if (item.checked) {
+                batch.update(doc(db, "listas", currentListaId, "items", item.id), { checked: false });
+            }
+        });
+        await batch.commit();
+    };
+
+    window.toggleHideChecked = function () {
+        hideChecked = !hideChecked;
+        updateHideCheckedBtn();
+        renderItems();
+    };
+
+    function updateHideCheckedBtn() {
+        const btn = document.getElementById("hideCheckedBtn");
+        if (hideChecked) {
+            btn.textContent = "👁️ Mostrar marcados";
+            btn.className = "text-sm bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 rounded-lg transition";
+        } else {
+            btn.textContent = "🙈 Ocultar marcados";
+            btn.className = "text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-lg transition";
+        }
+    }
+
+    function renderItems() {
+        const listEl = document.getElementById("itemsList");
+        const counter = document.getElementById("itemCounter");
+
+        const visibleItems = hideChecked ? currentItems.filter(i => !i.checked) : currentItems;
+
+        if (currentItems.length === 0) {
+            listEl.innerHTML = `
+                <div class="bg-gray-50 rounded-2xl p-8 text-center text-gray-500">
+                    Esta lista todavía no tiene elementos.
+                </div>
+            `;
+        } else if (visibleItems.length === 0) {
+            listEl.innerHTML = `
+                <div class="bg-gray-50 rounded-2xl p-8 text-center text-gray-500">
+                    Todos los elementos están marcados (y ocultos).
+                </div>
+            `;
+        } else {
+            listEl.innerHTML = visibleItems.map(item => `
+                <li class="flex items-center justify-between bg-gray-50 p-3 rounded-xl shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <input
+                            type="checkbox"
+                            class="w-5 h-5 accent-violet-600"
+                            ${item.checked ? "checked" : ""}
+                            onchange="toggleItem('${item.id}', ${!!item.checked})"
+                        >
+                        <span class="text-gray-700 ${item.checked ? 'completed' : ''}">${escapeHtml(item.texto)}</span>
+                    </div>
+                    <button
+                        onclick="deleteItem('${item.id}')"
+                        class="text-red-500 hover:text-red-700 font-semibold"
+                    >
+                        Eliminar
+                    </button>
+                </li>
+            `).join("");
+        }
+
+        const total = currentItems.length;
+        const checked = currentItems.filter(i => i.checked).length;
+        counter.textContent = `${checked} / ${total} marcados`;
+    }
+
+    document.getElementById("itemInput").addEventListener("keypress", e => {
+        if (e.key === "Enter") addItem();
+    });
+
+    document.getElementById("nombreListaInput").addEventListener("keypress", e => {
+        if (e.key === "Enter") crearLista();
+    });
+
+    // Escucha en tiempo real de las listas
+    const qListas = query(listasCol, orderBy("createdAt", "desc"));
+    onSnapshot(qListas, snapshot => {
+        listas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderListas();
+    });
+</script>
+
+</body>
+</html>
