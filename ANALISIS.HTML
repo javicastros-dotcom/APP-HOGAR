@@ -18,9 +18,37 @@
                 📊 Análisis de Gastos
             </h1>
 
-            <p class="text-center text-gray-500 mb-8">
+            <p class="text-center text-gray-500 mb-6">
                 Visualiza tus gastos por categoría en el periodo que elijas
             </p>
+
+            <!-- Selector de vista -->
+            <div class="flex flex-wrap justify-center gap-2 mb-6">
+                <button
+                    id="vistaCategoriasBtn"
+                    onclick="setVista('categorias')"
+                    class="px-4 py-2 rounded-xl font-semibold transition"
+                >
+                    📊 Por categorías
+                </button>
+                <button
+                    id="vistaEvolucionBtn"
+                    onclick="setVista('evolucion')"
+                    class="px-4 py-2 rounded-xl font-semibold transition"
+                >
+                    📈 Evolución de una categoría
+                </button>
+            </div>
+
+            <!-- Selector de categoría (solo en modo evolución) -->
+            <div id="categoriaSelectorWrap" class="hidden mb-6">
+                <label class="block text-sm text-gray-600 mb-1">Categoría</label>
+                <select
+                    id="categoriaSelect"
+                    onchange="actualizar()"
+                    class="border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                ></select>
+            </div>
 
             <!-- Filtros -->
             <div class="flex flex-wrap items-end gap-4 mb-8 bg-slate-50 rounded-2xl p-4">
@@ -69,7 +97,7 @@
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="border-b-2 border-slate-200">
-                            <th class="py-2 px-3 text-gray-600">Categoría</th>
+                            <th class="py-2 px-3 text-gray-600" id="tablaColHeader">Categoría</th>
                             <th class="py-2 px-3 text-gray-600 text-right">Importe</th>
                         </tr>
                     </thead>
@@ -122,6 +150,7 @@
     let todosLosGastos = [];
     let allTime = false;
     let chart = null;
+    let vista = "categorias"; // "categorias" | "evolucion"
 
     function toLocalDateString(date) {
         const year = date.getFullYear();
@@ -134,11 +163,48 @@
         return n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
     }
 
+    function formatMesLabel(clave) {
+        // clave = "YYYY-MM"
+        const [year, month] = clave.split("-");
+        const fecha = new Date(Number(year), Number(month) - 1, 1);
+        const texto = fecha.toLocaleDateString("es-ES", { month: "short", year: "numeric" });
+        return texto.charAt(0).toUpperCase() + texto.slice(1);
+    }
+
     // ---------- Rango de fechas por defecto: mes actual ----------
     const hoy = new Date();
     const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
     document.getElementById("fechaDesde").value = toLocalDateString(primerDiaMes);
     document.getElementById("fechaHasta").value = toLocalDateString(hoy);
+
+    // ---------- Poblar selector de categorías ----------
+    const categoriaSelect = document.getElementById("categoriaSelect");
+    categoriaSelect.innerHTML = CATEGORIAS.map(c =>
+        `<option value="${c}">${CATEGORIA_LABEL[c] || c}</option>`
+    ).join("");
+
+    window.setVista = function (nuevaVista) {
+        vista = nuevaVista;
+
+        const btnCat = document.getElementById("vistaCategoriasBtn");
+        const btnEvo = document.getElementById("vistaEvolucionBtn");
+        const selectorWrap = document.getElementById("categoriaSelectorWrap");
+        const tablaColHeader = document.getElementById("tablaColHeader");
+
+        if (vista === "categorias") {
+            btnCat.className = "px-4 py-2 rounded-xl font-semibold transition bg-slate-700 text-white";
+            btnEvo.className = "px-4 py-2 rounded-xl font-semibold transition bg-gray-200 text-gray-700 hover:bg-gray-300";
+            selectorWrap.classList.add("hidden");
+            tablaColHeader.textContent = "Categoría";
+        } else {
+            btnCat.className = "px-4 py-2 rounded-xl font-semibold transition bg-gray-200 text-gray-700 hover:bg-gray-300";
+            btnEvo.className = "px-4 py-2 rounded-xl font-semibold transition bg-slate-700 text-white";
+            selectorWrap.classList.remove("hidden");
+            tablaColHeader.textContent = "Mes";
+        }
+
+        actualizar();
+    };
 
     window.toggleAllTime = function () {
         allTime = !allTime;
@@ -173,6 +239,19 @@
             if (hasta) filtrados = filtrados.filter(g => g.fecha <= hasta);
         }
 
+        // ---------- Texto del rango ----------
+        document.getElementById("rangoActual").textContent = allTime
+            ? "Mostrando: todo el histórico"
+            : `Mostrando: ${desde || "…"} → ${hasta || "…"}`;
+
+        if (vista === "categorias") {
+            renderVistaCategorias(filtrados);
+        } else {
+            renderVistaEvolucion(filtrados);
+        }
+    };
+
+    function renderVistaCategorias(filtrados) {
         // Agregar por categoría
         const sumas = {};
         CATEGORIAS.forEach(c => sumas[c] = 0);
@@ -183,11 +262,6 @@
 
         const categoriasConDatos = Object.keys(sumas).filter(c => sumas[c] > 0);
         const total = filtrados.reduce((s, g) => s + g.importe, 0);
-
-        // ---------- Texto del rango ----------
-        document.getElementById("rangoActual").textContent = allTime
-            ? "Mostrando: todo el histórico"
-            : `Mostrando: ${desde || "…"} → ${hasta || "…"}`;
 
         // ---------- Gráfico ----------
         const ctx = document.getElementById("chartGastos").getContext("2d");
@@ -241,7 +315,79 @@
         }
 
         document.getElementById("tablaTotal").textContent = formatMoney(total);
-    };
+    }
+
+    function renderVistaEvolucion(filtrados) {
+        const categoriaElegida = categoriaSelect.value || CATEGORIAS[0];
+        const color = CATEGORIA_COLOR[categoriaElegida] || "#334155";
+
+        const deLaCategoria = filtrados.filter(g => g.categoria === categoriaElegida);
+
+        // Agregar por mes (YYYY-MM)
+        const sumasPorMes = {};
+        deLaCategoria.forEach(g => {
+            const mes = g.fecha.slice(0, 7);
+            sumasPorMes[mes] = (sumasPorMes[mes] || 0) + g.importe;
+        });
+
+        const mesesOrdenados = Object.keys(sumasPorMes).sort();
+        const total = deLaCategoria.reduce((s, g) => s + g.importe, 0);
+
+        // ---------- Gráfico de línea ----------
+        const ctx = document.getElementById("chartGastos").getContext("2d");
+
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: mesesOrdenados.map(formatMesLabel),
+                datasets: [{
+                    label: `${CATEGORIA_LABEL[categoriaElegida] || categoriaElegida} (€)`,
+                    data: mesesOrdenados.map(m => sumasPorMes[m]),
+                    borderColor: color,
+                    backgroundColor: color + "33",
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: color
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: v => v + " €" }
+                    }
+                }
+            }
+        });
+
+        // ---------- Tabla (por mes) ----------
+        const tbody = document.getElementById("tablaBody");
+
+        if (mesesOrdenados.length === 0) {
+            tbody.innerHTML = `
+                <tr><td colspan="2" class="py-6 px-3 text-center text-gray-400">No hay gastos de esta categoría en este periodo.</td></tr>
+            `;
+        } else {
+            tbody.innerHTML = mesesOrdenados.map(m => `
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="py-2 px-3">
+                        <span class="inline-block w-3 h-3 rounded-full mr-2" style="background:${color}"></span>
+                        ${formatMesLabel(m)}
+                    </td>
+                    <td class="py-2 px-3 text-right font-semibold text-gray-700">${formatMoney(sumasPorMes[m])}</td>
+                </tr>
+            `).join("");
+        }
+
+        document.getElementById("tablaTotal").textContent = formatMoney(total);
+    }
+
+    setVista("categorias");
 
     // Escucha en tiempo real
     onSnapshot(gastosCol, snapshot => {
