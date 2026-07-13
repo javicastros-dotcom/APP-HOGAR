@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análisis de Gastos</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 min-h-screen">
+
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+
+        <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8">
+
+            <h1 class="text-4xl font-bold text-center text-slate-700 mb-2">
+                📊 Análisis de Gastos
+            </h1>
+
+            <p class="text-center text-gray-500 mb-8">
+                Visualiza tus gastos por categoría en el periodo que elijas
+            </p>
+
+            <!-- Filtros -->
+            <div class="flex flex-wrap items-end gap-4 mb-8 bg-slate-50 rounded-2xl p-4">
+
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Desde</label>
+                    <input
+                        type="date"
+                        id="fechaDesde"
+                        onchange="actualizar()"
+                        class="border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Hasta</label>
+                    <input
+                        type="date"
+                        id="fechaHasta"
+                        onchange="actualizar()"
+                        class="border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    >
+                </div>
+
+                <button
+                    id="allTimeBtn"
+                    onclick="toggleAllTime()"
+                    class="px-4 py-2 rounded-xl font-semibold transition bg-gray-200 text-gray-700 hover:bg-gray-300"
+                >
+                    ⏱️ Todo el tiempo
+                </button>
+
+                <span id="rangoActual" class="text-sm text-gray-500 ml-auto"></span>
+
+            </div>
+
+            <!-- Gráfico -->
+            <div class="bg-slate-50 rounded-2xl p-4 mb-8">
+                <canvas id="chartGastos" height="110"></canvas>
+            </div>
+
+            <!-- Tabla -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b-2 border-slate-200">
+                            <th class="py-2 px-3 text-gray-600">Categoría</th>
+                            <th class="py-2 px-3 text-gray-600 text-right">Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaBody"></tbody>
+                    <tfoot>
+                        <tr class="border-t-2 border-slate-300 font-bold text-slate-800">
+                            <td class="py-3 px-3">Total</td>
+                            <td class="py-3 px-3 text-right" id="tablaTotal">0,00 €</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+        </div>
+
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDT8Zmbv2WNiAem_WpGbQTIFd9skWCkf2Q",
+        authDomain: "javilyn-f9d54.firebaseapp.com",
+        projectId: "javilyn-f9d54",
+        storageBucket: "javilyn-f9d54.firebasestorage.app",
+        messagingSenderId: "961900478002",
+        appId: "1:961900478002:web:652e75b65010a46f4f462b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const gastosCol = collection(db, "gastos");
+
+    const CATEGORIAS = ["Colegios", "Telefono", "Coches", "Supermercados", "Luz", "Agua", "Ocio", "Salud", "Ropa", "Hogar"];
+    const CATEGORIA_COLOR = {
+        Colegios: "#3b82f6",
+        Telefono: "#a855f7",
+        Coches: "#64748b",
+        Supermercados: "#f97316",
+        Luz: "#eab308",
+        Agua: "#06b6d4",
+        Ocio: "#ec4899",
+        Salud: "#ef4444",
+        Ropa: "#6366f1",
+        Hogar: "#14b8a6"
+    };
+    const CATEGORIA_LABEL = { Telefono: "Teléfono" };
+
+    let todosLosGastos = [];
+    let allTime = false;
+    let chart = null;
+
+    function toLocalDateString(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    function formatMoney(n) {
+        return n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+    }
+
+    // ---------- Rango de fechas por defecto: mes actual ----------
+    const hoy = new Date();
+    const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    document.getElementById("fechaDesde").value = toLocalDateString(primerDiaMes);
+    document.getElementById("fechaHasta").value = toLocalDateString(hoy);
+
+    window.toggleAllTime = function () {
+        allTime = !allTime;
+        const btn = document.getElementById("allTimeBtn");
+        const desde = document.getElementById("fechaDesde");
+        const hasta = document.getElementById("fechaHasta");
+
+        desde.disabled = allTime;
+        hasta.disabled = allTime;
+
+        if (allTime) {
+            btn.className = "px-4 py-2 rounded-xl font-semibold transition bg-slate-700 text-white";
+            desde.classList.add("opacity-50");
+            hasta.classList.add("opacity-50");
+        } else {
+            btn.className = "px-4 py-2 rounded-xl font-semibold transition bg-gray-200 text-gray-700 hover:bg-gray-300";
+            desde.classList.remove("opacity-50");
+            hasta.classList.remove("opacity-50");
+        }
+
+        actualizar();
+    };
+
+    window.actualizar = function () {
+        const desde = document.getElementById("fechaDesde").value;
+        const hasta = document.getElementById("fechaHasta").value;
+
+        let filtrados = todosLosGastos.filter(g => g.tipo === "gasto");
+
+        if (!allTime) {
+            if (desde) filtrados = filtrados.filter(g => g.fecha >= desde);
+            if (hasta) filtrados = filtrados.filter(g => g.fecha <= hasta);
+        }
+
+        // Agregar por categoría
+        const sumas = {};
+        CATEGORIAS.forEach(c => sumas[c] = 0);
+        filtrados.forEach(g => {
+            const cat = CATEGORIAS.includes(g.categoria) ? g.categoria : "Otros";
+            sumas[cat] = (sumas[cat] || 0) + g.importe;
+        });
+
+        const categoriasConDatos = Object.keys(sumas).filter(c => sumas[c] > 0);
+        const total = filtrados.reduce((s, g) => s + g.importe, 0);
+
+        // ---------- Texto del rango ----------
+        document.getElementById("rangoActual").textContent = allTime
+            ? "Mostrando: todo el histórico"
+            : `Mostrando: ${desde || "…"} → ${hasta || "…"}`;
+
+        // ---------- Gráfico ----------
+        const ctx = document.getElementById("chartGastos").getContext("2d");
+        const labels = categoriasConDatos.length > 0 ? categoriasConDatos : CATEGORIAS;
+        const data = labels.map(c => sumas[c] || 0);
+        const colors = labels.map(c => CATEGORIA_COLOR[c] || "#94a3b8");
+
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: labels.map(c => CATEGORIA_LABEL[c] || c),
+                datasets: [{
+                    label: "Gastos (€)",
+                    data,
+                    backgroundColor: colors,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: v => v + " €" }
+                    }
+                }
+            }
+        });
+
+        // ---------- Tabla ----------
+        const tbody = document.getElementById("tablaBody");
+
+        if (categoriasConDatos.length === 0) {
+            tbody.innerHTML = `
+                <tr><td colspan="2" class="py-6 px-3 text-center text-gray-400">No hay gastos en este periodo.</td></tr>
+            `;
+        } else {
+            const ordenadas = categoriasConDatos.sort((a, b) => sumas[b] - sumas[a]);
+            tbody.innerHTML = ordenadas.map(c => `
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="py-2 px-3">
+                        <span class="inline-block w-3 h-3 rounded-full mr-2" style="background:${CATEGORIA_COLOR[c] || '#94a3b8'}"></span>
+                        ${CATEGORIA_LABEL[c] || c}
+                    </td>
+                    <td class="py-2 px-3 text-right font-semibold text-gray-700">${formatMoney(sumas[c])}</td>
+                </tr>
+            `).join("");
+        }
+
+        document.getElementById("tablaTotal").textContent = formatMoney(total);
+    };
+
+    // Escucha en tiempo real
+    onSnapshot(gastosCol, snapshot => {
+        todosLosGastos = snapshot.docs.map(d => d.data());
+        actualizar();
+    });
+</script>
+
+</body>
+</html>
