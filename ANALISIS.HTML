@@ -59,7 +59,9 @@
 
             <!-- Gráfico -->
             <div class="bg-slate-50 rounded-2xl p-4 mb-8">
-                <canvas id="chartGastos" height="110"></canvas>
+                <div class="relative h-64 sm:h-80 md:h-96">
+                    <canvas id="chartGastos"></canvas>
+                </div>
             </div>
 
             <!-- Tabla -->
@@ -207,6 +209,7 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
                     y: {
