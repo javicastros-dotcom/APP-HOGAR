@@ -132,7 +132,7 @@
     const db = getFirestore(app);
     const gastosCol = collection(db, "gastos");
 
-    const CATEGORIAS = ["Colegios", "Telefono", "Coches", "Supermercados", "Luz", "Agua", "Ocio", "Salud", "Ropa", "Hogar"];
+    const CATEGORIAS = ["Colegios", "Telefono", "Coches", "Supermercados", "Luz", "Agua", "Ocio", "Salud", "Ropa", "Hogar", "Nominas", "Otros"];
     const CATEGORIA_COLOR = {
         Colegios: "#3b82f6",
         Telefono: "#a855f7",
@@ -143,9 +143,11 @@
         Ocio: "#ec4899",
         Salud: "#ef4444",
         Ropa: "#6366f1",
-        Hogar: "#14b8a6"
+        Hogar: "#14b8a6",
+        Nominas: "#84cc16",
+        Otros: "#9ca3af"
     };
-    const CATEGORIA_LABEL = { Telefono: "Teléfono" };
+    const CATEGORIA_LABEL = { Telefono: "Teléfono", Nominas: "Nóminas" };
 
     let todosLosGastos = [];
     let allTime = false;

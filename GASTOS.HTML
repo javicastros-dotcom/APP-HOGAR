@@ -53,7 +53,6 @@
                     id="categoriaInput"
                     class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
-                    <option value="Otros">Otros</option>
                     <option value="Colegios">Colegios</option>
                     <option value="Telefono">Teléfono</option>
                     <option value="Coches">Coches</option>
@@ -64,7 +63,8 @@
                     <option value="Salud">Salud</option>
                     <option value="Ropa">Ropa</option>
                     <option value="Hogar">Hogar</option>
-                    <option value="Nominas">Nominas</option>
+                    <option value="Nominas">Nóminas</option>
+                    <option value="Otros">Otros</option>
                 </select>
 
                 <input
@@ -138,7 +138,7 @@
                     <option value="Salud">Salud</option>
                     <option value="Ropa">Ropa</option>
                     <option value="Hogar">Hogar</option>
-                    <option value="Nominas">Nominas</option>
+                    <option value="Nominas">Nóminas</option>
                     <option value="Otros">Otros</option>
                 </select>
 
@@ -154,13 +154,12 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
-        getFirestore, collection, addDoc, deleteDoc, doc,
+        getFirestore, collection, addDoc, updateDoc, deleteDoc, doc,
         onSnapshot, query, orderBy
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     // ============================================================
-    // PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE (la misma que en
-    // COMPRA.HTML y TAREAS.HTML)
+    // Configuración de Firebase (la misma que en el resto de pantallas)
     // ============================================================
     const firebaseConfig = {
         apiKey: "AIzaSyDT8Zmbv2WNiAem_WpGbQTIFd9skWCkf2Q",
@@ -177,6 +176,9 @@
 
     let gastos = [];
     let tipoActual = "gasto";
+
+    const CATEGORIAS = ["Colegios", "Telefono", "Coches", "Supermercados", "Luz", "Agua", "Ocio", "Salud", "Ropa", "Hogar", "Nominas", "Otros"];
+    const CATEGORIA_LABEL = { Telefono: "Teléfono", Nominas: "Nóminas" };
 
     // ---------- Utilidad: fecha local en formato YYYY-MM-DD (evita el bug de UTC) ----------
     function toLocalDateString(date) {
@@ -220,6 +222,10 @@
                 return "bg-indigo-100 text-indigo-800";
             case "Hogar":
                 return "bg-teal-100 text-teal-800";
+            case "Nominas":
+                return "bg-lime-100 text-lime-800";
+            case "Otros":
+                return "bg-gray-200 text-gray-800";
             default:
                 return "bg-gray-100 text-gray-700";
         }
@@ -281,6 +287,11 @@
         await deleteDoc(doc(db, "gastos", id));
     };
 
+    // ---------- Cambiar categoría ----------
+    window.updateCategoria = async function (id, nuevaCategoria) {
+        await updateDoc(doc(db, "gastos", id), { categoria: nuevaCategoria });
+    };
+
     // ---------- Render + filtros + sumas ----------
     window.renderGastos = function () {
         const list = document.getElementById("gastosList");
@@ -327,9 +338,12 @@
 
                     <span class="text-sm text-gray-500 md:w-28">${g.fecha}</span>
 
-                    <span class="px-3 py-1 rounded-full text-sm font-semibold ${getCategoriaColor(g.categoria)}">
-                        ${escapeHtml(g.categoria)}
-                    </span>
+                    <select
+                        onchange="updateCategoria('${g.id}', this.value)"
+                        class="px-3 py-1 rounded-full text-sm font-semibold border-0 cursor-pointer ${getCategoriaColor(g.categoria)}"
+                    >
+                        ${CATEGORIAS.map(c => `<option value="${c}" ${c === g.categoria ? "selected" : ""}>${CATEGORIA_LABEL[c] || c}</option>`).join("")}
+                    </select>
 
                     <span class="px-3 py-1 rounded-full text-sm font-semibold ${g.tipo === 'gasto' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
                         ${g.tipo === 'gasto' ? 'Gasto' : 'Ingreso'}
