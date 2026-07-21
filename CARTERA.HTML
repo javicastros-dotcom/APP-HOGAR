@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartera</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        .spinner {
+            border: 3px solid #e5e7eb;
+            border-top-color: #7c3aed;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-800 via-slate-900 to-black min-h-screen">
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+
+        <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8">
+
+            <h1 class="text-4xl font-bold text-center text-slate-800 mb-2">
+                👛 Cartera
+            </h1>
+
+            <p class="text-center text-gray-500 mb-8">
+                Guarda tus tarjetas y documentos escaneados desde el móvil
+            </p>
+
+            <!-- Selector de tipo a añadir -->
+            <div class="flex justify-center gap-2 mb-6">
+                <button onclick="mostrarFormulario('tarjeta')" id="btnTipoTarjeta"
+                        class="px-5 py-2 rounded-xl font-semibold transition">
+                    💳 Añadir tarjeta
+                </button>
+                <button onclick="mostrarFormulario('documento')" id="btnTipoDocumento"
+                        class="px-5 py-2 rounded-xl font-semibold transition">
+                    📄 Añadir documento
+                </button>
+            </div>
+
+            <!-- ===== Formulario: Tarjeta ===== -->
+            <div id="formTarjeta" class="hidden bg-slate-50 rounded-2xl p-5 mb-8">
+                <input type="text" id="tarjetaNombre" placeholder="Nombre de la tarjeta (ej. DNI, Visa...)"
+                       class="w-full border rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-slate-700">
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <button onclick="document.getElementById('tarjetaAnversoInput').click()"
+                                class="w-full border-2 border-dashed rounded-xl py-6 text-gray-500 hover:border-slate-500 hover:text-slate-700 transition flex flex-col items-center gap-2">
+                            <span id="tarjetaAnversoPreviewWrap">📷<span class="text-sm block">Cara (anverso)</span></span>
+                        </button>
+                        <input type="file" id="tarjetaAnversoInput" accept="image/*" capture="environment" class="hidden" onchange="previsualizarTarjeta(event, 'anverso')">
+                    </div>
+                    <div>
+                        <button onclick="document.getElementById('tarjetaReversoInput').click()"
+                                class="w-full border-2 border-dashed rounded-xl py-6 text-gray-500 hover:border-slate-500 hover:text-slate-700 transition flex flex-col items-center gap-2">
+                            <span id="tarjetaReversoPreviewWrap">📷<span class="text-sm block">Reverso</span></span>
+                        </button>
+                        <input type="file" id="tarjetaReversoInput" accept="image/*" capture="environment" class="hidden" onchange="previsualizarTarjeta(event, 'reverso')">
+                    </div>
+                </div>
+
+                <button onclick="guardarTarjeta()" id="btnGuardarTarjeta"
+                        class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2">
+                    Guardar tarjeta
+                </button>
+            </div>
+
+            <!-- ===== Formulario: Documento ===== -->
+            <div id="formDocumento" class="hidden bg-slate-50 rounded-2xl p-5 mb-8">
+                <input type="text" id="documentoNombre" placeholder="Nombre del documento (ej. Contrato alquiler)"
+                       class="w-full border rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-slate-700">
+
+                <button onclick="document.getElementById('documentoPaginaInput').click()"
+                        class="w-full border-2 border-dashed rounded-xl py-6 text-gray-500 hover:border-slate-500 hover:text-slate-700 transition mb-4">
+                    📷 Añadir página
+                </button>
+                <input type="file" id="documentoPaginaInput" accept="image/*" capture="environment" class="hidden" onchange="onPaginaSeleccionada(event)">
+
+                <div id="paginasPreview" class="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-4"></div>
+
+                <button onclick="guardarDocumento()" id="btnGuardarDocumento"
+                        class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2">
+                    Guardar documento
+                </button>
+            </div>
+
+            <!-- Galería -->
+            <div id="galeria" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+
+        </div>
+
+    </div>
+
+    <!-- Modal visor -->
+    <div id="modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-4 relative">
+            <button onclick="cerrarModal()" class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl leading-none">&times;</button>
+            <h3 id="modalTitulo" class="text-lg font-bold text-gray-800 mb-3 pr-8"></h3>
+            <div id="modalImagenWrap" class="w-full aspect-[3/4] bg-gray-100 rounded-xl border flex items-center justify-center overflow-hidden">
+                <img id="modalImagen" class="max-w-full max-h-full object-contain" />
+            </div>
+            <div class="flex justify-between items-center mt-3">
+                <button onclick="modalAnterior()" id="modalPrevBtn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">← Anterior</button>
+                <span id="modalContador" class="text-sm text-gray-500"></span>
+                <button onclick="modalSiguiente()" id="modalNextBtn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">Siguiente →</button>
+            </div>
+            <button onclick="eliminarItemActual()" class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg transition">🗑️ Eliminar de la cartera</button>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+        getFirestore, collection, addDoc, deleteDoc, doc,
+        onSnapshot, query, orderBy, getDocs, writeBatch
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // Nota: esta versión NO usa Firebase Storage (evita necesitar el plan de pago Blaze).
+    // Las imágenes se comprimen en el navegador y se guardan como texto (base64) en Firestore,
+    // cada página como un documento independiente para no superar el límite de 1MB por documento.
+    const firebaseConfig = {
+        apiKey: "AIzaSyDT8Zmbv2WNiAem_WpGbQTIFd9skWCkf2Q",
+        authDomain: "javilyn-f9d54.firebaseapp.com",
+        projectId: "javilyn-f9d54",
+        storageBucket: "javilyn-f9d54.firebasestorage.app",
+        messagingSenderId: "961900478002",
+        appId: "1:961900478002:web:652e75b65010a46f4f462b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const carteraCol = collection(db, "cartera");
+
+    let items = [];
+    let tarjetaAnversoFile = null;
+    let tarjetaReversoFile = null;
+    let paginasFiles = []; // { file, previewUrl }
+
+    let modalItem = null;
+    let modalImagenes = [];
+    let modalIndex = 0;
+
+    // ================= Utilidades =================
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // Comprime una imagen y la devuelve como data URL (texto base64), lista para Firestore.
+    function compressToDataUrl(file, maxWidth, quality) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    let { width, height } = img;
+                    if (width > maxWidth) {
+                        height = Math.round(height * (maxWidth / width));
+                        width = maxWidth;
+                    }
+                    const canvas = document.createElement("canvas");
+                    canvas.width = width;
+                    canvas.height = height;
+                    canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL("image/jpeg", quality));
+                };
+                img.onerror = reject;
+                img.src = e.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Tamaño "completo" para ver bien la imagen, pero comprimido para caber en un documento de Firestore (<1MB)
+    async function comprimirCompleta(file) {
+        return compressToDataUrl(file, 1000, 0.55);
+    }
+
+    // Miniatura pequeña para la galería (mucho más ligera)
+    async function comprimirMiniatura(file) {
+        return compressToDataUrl(file, 240, 0.5);
+    }
+
+    // ================= Formularios =================
+    window.mostrarFormulario = function (tipo) {
+        document.getElementById("formTarjeta").classList.toggle("hidden", tipo !== "tarjeta");
+        document.getElementById("formDocumento").classList.toggle("hidden", tipo !== "documento");
+
+        document.getElementById("btnTipoTarjeta").className = "px-5 py-2 rounded-xl font-semibold transition " +
+            (tipo === "tarjeta" ? "bg-slate-800 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300");
+        document.getElementById("btnTipoDocumento").className = "px-5 py-2 rounded-xl font-semibold transition " +
+            (tipo === "documento" ? "bg-slate-800 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300");
+    };
+
+    window.previsualizarTarjeta = function (event, cara) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const url = URL.createObjectURL(file);
+        const wrapId = cara === "anverso" ? "tarjetaAnversoPreviewWrap" : "tarjetaReversoPreviewWrap";
+        document.getElementById(wrapId).innerHTML = `<img src="${url}" class="w-full h-20 object-cover rounded-lg">`;
+
+        if (cara === "anverso") tarjetaAnversoFile = file;
+        else tarjetaReversoFile = file;
+    };
+
+    window.onPaginaSeleccionada = function (event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        paginasFiles.push({ file, previewUrl: URL.createObjectURL(file) });
+        renderPaginasPreview();
+        event.target.value = "";
+    };
+
+    function renderPaginasPreview() {
+        const wrap = document.getElementById("paginasPreview");
+        wrap.innerHTML = paginasFiles.map((p, i) => `
+            <div class="relative">
+                <img src="${p.previewUrl}" class="w-full h-16 object-cover rounded-lg border">
+                <button onclick="quitarPagina(${i})" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs leading-none">&times;</button>
+                <span class="absolute bottom-0 left-0 bg-black/60 text-white text-[10px] px-1 rounded-tr">${i + 1}</span>
+            </div>
+        `).join("");
+    }
+
+    window.quitarPagina = function (i) {
+        paginasFiles.splice(i, 1);
+        renderPaginasPreview();
+    };
+
+    // ================= Guardar =================
+    window.guardarTarjeta = async function () {
+        const nombre = document.getElementById("tarjetaNombre").value.trim();
+
+        if (!nombre) { alert("Ponle un nombre a la tarjeta"); return; }
+        if (!tarjetaAnversoFile || !tarjetaReversoFile) { alert("Adjunta la foto de la cara y del reverso"); return; }
+
+        const btn = document.getElementById("btnGuardarTarjeta");
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner"></span> Guardando...`;
+
+        try {
+            const miniatura = await comprimirMiniatura(tarjetaAnversoFile);
+            const anversoData = await comprimirCompleta(tarjetaAnversoFile);
+            const reversoData = await comprimirCompleta(tarjetaReversoFile);
+
+            const docRef = await addDoc(carteraCol, {
+                tipoItem: "tarjeta", nombre, miniatura, createdAt: Date.now()
+            });
+
+            await addDoc(collection(db, "cartera", docRef.id, "paginas"), { orden: 0, label: "Anverso", dataUrl: anversoData });
+            await addDoc(collection(db, "cartera", docRef.id, "paginas"), { orden: 1, label: "Reverso", dataUrl: reversoData });
+
+            document.getElementById("tarjetaNombre").value = "";
+            document.getElementById("tarjetaAnversoPreviewWrap").innerHTML = `📷<span class="text-sm block">Cara (anverso)</span>`;
+            document.getElementById("tarjetaReversoPreviewWrap").innerHTML = `📷<span class="text-sm block">Reverso</span>`;
+            tarjetaAnversoFile = null; tarjetaReversoFile = null;
+        } catch (err) {
+            console.error(err);
+            alert("Error al guardar la tarjeta. Prueba con una foto de menor tamaño.");
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Guardar tarjeta";
+        }
+    };
+
+    window.guardarDocumento = async function () {
+        const nombre = document.getElementById("documentoNombre").value.trim();
+
+        if (!nombre) { alert("Ponle un nombre al documento"); return; }
+        if (paginasFiles.length === 0) { alert("Añade al menos una página"); return; }
+
+        const btn = document.getElementById("btnGuardarDocumento");
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner"></span> Guardando...`;
+
+        try {
+            const miniatura = await comprimirMiniatura(paginasFiles[0].file);
+
+            const docRef = await addDoc(carteraCol, {
+                tipoItem: "documento", nombre, miniatura, numPaginas: paginasFiles.length, createdAt: Date.now()
+            });
+
+            for (let i = 0; i < paginasFiles.length; i++) {
+                const data = await comprimirCompleta(paginasFiles[i].file);
+                await addDoc(collection(db, "cartera", docRef.id, "paginas"), { orden: i, label: `Página ${i + 1}`, dataUrl: data });
+            }
+
+            document.getElementById("documentoNombre").value = "";
+            paginasFiles = [];
+            renderPaginasPreview();
+        } catch (err) {
+            console.error(err);
+            alert("Error al guardar el documento. Prueba con menos páginas o fotos de menor tamaño.");
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Guardar documento";
+        }
+    };
+
+    // ================= Eliminar =================
+    window.eliminarItemActual = async function () {
+        if (!modalItem) return;
+        if (!confirm(`¿Eliminar "${modalItem.nombre}" de la cartera?`)) return;
+
+        const paginasSnap = await getDocs(collection(db, "cartera", modalItem.id, "paginas"));
+        const batch = writeBatch(db);
+        paginasSnap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+
+        await deleteDoc(doc(db, "cartera", modalItem.id));
+        cerrarModal();
+    };
+
+    // ================= Galería =================
+    function renderGaleria() {
+        const galeria = document.getElementById("galeria");
+
+        if (items.length === 0) {
+            galeria.innerHTML = `<div class="col-span-full bg-gray-50 rounded-2xl p-8 text-center text-gray-500">Tu cartera está vacía.</div>`;
+            return;
+        }
+
+        galeria.innerHTML = items.map(item => {
+            const icono = item.tipoItem === "tarjeta" ? "💳" : "📄";
+            return `
+                <div onclick='abrirModal("${item.id}")' class="cursor-pointer bg-gray-50 hover:bg-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition border border-gray-100">
+                    <img src="${item.miniatura}" class="w-full aspect-[3/2] object-cover">
+                    <div class="p-3">
+                        <p class="font-semibold text-gray-800 text-sm truncate">${icono} ${escapeHtml(item.nombre)}</p>
+                        ${item.tipoItem === "documento" ? `<p class="text-xs text-gray-400">${item.numPaginas || 1} página(s)</p>` : ""}
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    // ================= Modal =================
+    window.abrirModal = async function (id) {
+        const item = items.find(i => i.id === id);
+        if (!item) return;
+
+        modalItem = item;
+        modalIndex = 0;
+        modalImagenes = [];
+
+        document.getElementById("modal").classList.remove("hidden");
+        document.getElementById("modalTitulo").textContent = `${item.tipoItem === "tarjeta" ? "💳" : "📄"} ${item.nombre}`;
+        document.getElementById("modalImagen").src = item.miniatura; // muestra la miniatura mientras carga la buena
+        document.getElementById("modalContador").textContent = "Cargando...";
+
+        const snap = await getDocs(query(collection(db, "cartera", id, "paginas"), orderBy("orden")));
+        modalImagenes = snap.docs.map(d => d.data());
+
+        if (modalItem && modalItem.id === id) renderModal();
+    };
+
+    window.cerrarModal = function () {
+        document.getElementById("modal").classList.add("hidden");
+        modalItem = null;
+        modalImagenes = [];
+    };
+
+    window.modalAnterior = function () {
+        modalIndex = Math.max(0, modalIndex - 1);
+        renderModal();
+    };
+
+    window.modalSiguiente = function () {
+        modalIndex = Math.min(modalImagenes.length - 1, modalIndex + 1);
+        renderModal();
+    };
+
+    function renderModal() {
+        const actual = modalImagenes[modalIndex];
+        if (!actual) return;
+
+        document.getElementById("modalImagen").src = actual.dataUrl;
+        document.getElementById("modalContador").textContent = `${actual.label} (${modalIndex + 1}/${modalImagenes.length})`;
+
+        document.getElementById("modalPrevBtn").style.visibility = modalIndex === 0 ? "hidden" : "visible";
+        document.getElementById("modalNextBtn").style.visibility = modalIndex === modalImagenes.length - 1 ? "hidden" : "visible";
+    }
+
+    // Escucha en tiempo real (solo datos ligeros: nombre + miniatura)
+    const q = query(carteraCol, orderBy("createdAt", "desc"));
+    onSnapshot(q, snapshot => {
+        items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderGaleria();
+    });
+
+    mostrarFormulario("tarjeta");
+</script>
+
+</body>
+</html>
