@@ -56,14 +56,14 @@
                                 class="w-full border-2 border-dashed rounded-xl py-6 text-gray-500 hover:border-slate-500 hover:text-slate-700 transition flex flex-col items-center gap-2">
                             <span id="tarjetaAnversoPreviewWrap">📷<span class="text-sm block">Cara (anverso)</span></span>
                         </button>
-                        <input type="file" id="tarjetaAnversoInput" accept="image/*" capture="environment" class="hidden" onchange="previsualizarTarjeta(event, 'anverso')">
+                        <input type="file" id="tarjetaAnversoInput" accept="image/*" class="hidden" onchange="previsualizarTarjeta(event, 'anverso')">
                     </div>
                     <div>
                         <button onclick="document.getElementById('tarjetaReversoInput').click()"
                                 class="w-full border-2 border-dashed rounded-xl py-6 text-gray-500 hover:border-slate-500 hover:text-slate-700 transition flex flex-col items-center gap-2">
                             <span id="tarjetaReversoPreviewWrap">📷<span class="text-sm block">Reverso</span></span>
                         </button>
-                        <input type="file" id="tarjetaReversoInput" accept="image/*" capture="environment" class="hidden" onchange="previsualizarTarjeta(event, 'reverso')">
+                        <input type="file" id="tarjetaReversoInput" accept="image/*" class="hidden" onchange="previsualizarTarjeta(event, 'reverso')">
                     </div>
                 </div>
 
@@ -82,7 +82,7 @@
                         class="w-full border-2 border-dashed rounded-xl py-6 text-gray-500 hover:border-slate-500 hover:text-slate-700 transition mb-4">
                     📷 Añadir página
                 </button>
-                <input type="file" id="documentoPaginaInput" accept="image/*" capture="environment" class="hidden" onchange="onPaginaSeleccionada(event)">
+                <input type="file" id="documentoPaginaInput" accept="image/*" class="hidden" onchange="onPaginaSeleccionada(event)">
 
                 <div id="paginasPreview" class="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-4"></div>
 
