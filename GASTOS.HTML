@@ -67,13 +67,16 @@
                     <option value="Otros">Otros</option>
                 </select>
 
-                <input
-                    type="text"
-                    id="descripcionInput"
-                    placeholder="Descripción..."
-                    class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-
+                <div class="relative">
+                    <input
+                        type="text"
+                        id="descripcionInput"
+                        placeholder="Descripción..."
+                        autocomplete="off"
+                        class="w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                    <div id="sugerenciasDescripcion" class="hidden absolute z-10 top-full left-0 right-0 bg-white border rounded-xl shadow-lg mt-1 overflow-hidden"></div>
+                </div>
                 <input
                     type="number"
                     id="importeInput"
@@ -173,8 +176,10 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const gastosCol = collection(db, "gastos");
+    const fijosCol = collection(db, "gastosFijos");
 
     let gastos = [];
+    let fijos = [];
     let tipoActual = "gasto";
 
     const CATEGORIAS = ["Colegios", "Telefono", "Coches", "Supermercados", "Luz", "Agua", "Ocio", "Salud", "Ropa", "Hogar", "Nominas", "Otros"];
@@ -252,6 +257,63 @@
         }
     };
     setTipo("gasto");
+
+    // ---------- Autosugerencia de gastos fijos en la descripción ----------
+    const descripcionInput = document.getElementById("descripcionInput");
+    const sugerenciasBox = document.getElementById("sugerenciasDescripcion");
+
+    function renderSugerencias(texto) {
+        const t = texto.trim().toLowerCase();
+
+        if (t.length < 3) {
+            sugerenciasBox.classList.add("hidden");
+            sugerenciasBox.innerHTML = "";
+            return;
+        }
+
+        const coincidencias = fijos.filter(f =>
+            f.descripcion && f.descripcion.toLowerCase().includes(t)
+        ).slice(0, 6);
+
+        if (coincidencias.length === 0) {
+            sugerenciasBox.classList.add("hidden");
+            sugerenciasBox.innerHTML = "";
+            return;
+        }
+
+        sugerenciasBox.innerHTML = coincidencias.map(f => `
+            <div
+                class="px-4 py-2 hover:bg-emerald-50 cursor-pointer flex justify-between items-center gap-2"
+                onclick='seleccionarSugerencia(${JSON.stringify(f).replace(/'/g, "&apos;")})'
+            >
+                <div>
+                    <p class="text-sm font-medium text-gray-800">${escapeHtml(f.descripcion)}</p>
+                    <p class="text-xs text-gray-400">${CATEGORIA_LABEL[f.categoria] || f.categoria}</p>
+                </div>
+                <span class="text-sm font-semibold text-emerald-700 shrink-0">${formatMoney(f.importe)}</span>
+            </div>
+        `).join("");
+
+        sugerenciasBox.classList.remove("hidden");
+    }
+
+    window.seleccionarSugerencia = function (fijo) {
+        descripcionInput.value = fijo.descripcion;
+        document.getElementById("categoriaInput").value = fijo.categoria;
+        document.getElementById("importeInput").value = fijo.importe;
+
+        sugerenciasBox.classList.add("hidden");
+        sugerenciasBox.innerHTML = "";
+    };
+
+    descripcionInput.addEventListener("input", () => renderSugerencias(descripcionInput.value));
+
+    // Oculta las sugerencias al hacer click fuera
+    document.addEventListener("click", (e) => {
+        if (!sugerenciasBox.contains(e.target) && e.target !== descripcionInput) {
+            sugerenciasBox.classList.add("hidden");
+        }
+    });
 
     // ---------- Añadir ----------
     window.addGasto = async function () {
@@ -374,6 +436,10 @@
     onSnapshot(q, snapshot => {
         gastos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         renderGastos();
+    });
+
+    onSnapshot(fijosCol, snapshot => {
+        fijos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     });
 </script>
 
