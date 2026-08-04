@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menú Semanal</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-rose-50 via-orange-50 to-amber-100 min-h-screen">
+
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+
+        <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8">
+
+            <h1 class="text-4xl font-bold text-center text-rose-700 mb-2">
+                🍽️ Menú Semanal
+            </h1>
+
+            <p class="text-center text-gray-500 mb-6">
+                Planifica comidas y cenas, e inspírate con tus recetas guardadas
+            </p>
+
+            <!-- Pestañas -->
+            <div class="flex justify-center gap-2 mb-8">
+                <button id="tabCalendarioBtn" onclick="mostrarTab('calendario')" class="px-5 py-2 rounded-xl font-semibold transition">
+                    📅 Calendario
+                </button>
+                <button id="tabRecetasBtn" onclick="mostrarTab('recetas')" class="px-5 py-2 rounded-xl font-semibold transition">
+                    🍳 Recetas
+                </button>
+            </div>
+
+            <!-- ================= VISTA CALENDARIO ================= -->
+            <div id="viewCalendario">
+                <div id="semanas" class="space-y-8"></div>
+            </div>
+
+            <!-- ================= VISTA RECETAS ================= -->
+            <div id="viewRecetas" class="hidden">
+
+                <div class="bg-rose-50 rounded-2xl p-5 mb-6">
+                    <div class="grid md:grid-cols-2 gap-4 mb-4">
+                        <input type="text" id="recetaNombre" placeholder="Nombre del plato..."
+                               class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                        <input type="text" id="recetaDescripcion" placeholder="Descripción breve..."
+                               class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                    </div>
+                    <textarea id="recetaIngredientes" placeholder="Ingredientes (uno por línea)..." rows="3"
+                              class="w-full border rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
+                    <textarea id="recetaElaboracion" placeholder="Elaboración / pasos..." rows="4"
+                              class="w-full border rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
+                    <button onclick="guardarReceta()" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl transition">
+                        ➕ Guardar receta
+                    </button>
+                </div>
+
+                <div id="recetasList" class="grid md:grid-cols-2 gap-4"></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Modal: editar comida/cena de un día -->
+    <div id="modalDia" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 relative max-h-[90vh] overflow-y-auto">
+            <button onclick="cerrarModalDia()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+            <h3 id="modalDiaTitulo" class="text-xl font-bold text-gray-800 mb-4"></h3>
+
+            <div class="mb-5">
+                <div class="flex justify-between items-center mb-1">
+                    <label class="text-sm font-semibold text-gray-600">🌞 Comida</label>
+                    <button onclick="toggleIdeas('comida')" class="text-xs text-rose-600 hover:text-rose-800 font-semibold">💡 Ver ideas</button>
+                </div>
+                <textarea id="inputComida" rows="2" placeholder="¿Qué hay de comer?"
+                          class="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
+                <div id="ideasComida" class="hidden mt-2 border rounded-xl divide-y max-h-40 overflow-y-auto"></div>
+            </div>
+
+            <div class="mb-5">
+                <div class="flex justify-between items-center mb-1">
+                    <label class="text-sm font-semibold text-gray-600">🌙 Cena</label>
+                    <button onclick="toggleIdeas('cena')" class="text-xs text-rose-600 hover:text-rose-800 font-semibold">💡 Ver ideas</button>
+                </div>
+                <textarea id="inputCena" rows="2" placeholder="¿Qué hay de cenar?"
+                          class="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
+                <div id="ideasCena" class="hidden mt-2 border rounded-xl divide-y max-h-40 overflow-y-auto"></div>
+            </div>
+
+            <button onclick="guardarDia()" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl transition">
+                Guardar
+            </button>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+        getFirestore, collection, addDoc, deleteDoc, doc, setDoc,
+        onSnapshot, query, orderBy
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDT8Zmbv2WNiAem_WpGbQTIFd9skWCkf2Q",
+        authDomain: "javilyn-f9d54.firebaseapp.com",
+        projectId: "javilyn-f9d54",
+        storageBucket: "javilyn-f9d54.firebasestorage.app",
+        messagingSenderId: "961900478002",
+        appId: "1:961900478002:web:652e75b65010a46f4f462b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const comidasCol = collection(db, "comidas");
+    const recetasCol = collection(db, "recetas");
+
+    let comidas = {}; // { "YYYY-MM-DD": { comida, cena } }
+    let recetas = [];
+    let diaActual = null; // fecha del modal abierto
+
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function toLocalDateString(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    // ================= Pestañas =================
+    window.mostrarTab = function (tab) {
+        document.getElementById("viewCalendario").classList.toggle("hidden", tab !== "calendario");
+        document.getElementById("viewRecetas").classList.toggle("hidden", tab !== "recetas");
+
+        document.getElementById("tabCalendarioBtn").className = "px-5 py-2 rounded-xl font-semibold transition " +
+            (tab === "calendario" ? "bg-rose-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300");
+        document.getElementById("tabRecetasBtn").className = "px-5 py-2 rounded-xl font-semibold transition " +
+            (tab === "recetas" ? "bg-rose-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300");
+    };
+
+    // ================= Calendario: construir 3 semanas =================
+    function getLunes(d) {
+        const date = new Date(d);
+        const dia = date.getDay(); // 0=domingo
+        const diff = (dia === 0 ? -6 : 1) - dia;
+        date.setDate(date.getDate() + diff);
+        date.setHours(0, 0, 0, 0);
+        return date;
+    }
+
+    const DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+    const hoyStr = toLocalDateString(new Date());
+    const lunesActual = getLunes(new Date());
+    const lunesInicio = new Date(lunesActual);
+    lunesInicio.setDate(lunesInicio.getDate() - 7);
+
+    const semanasInfo = [
+        { titulo: "⬅️ Semana anterior", offset: 0 },
+        { titulo: "📍 Semana actual", offset: 7 },
+        { titulo: "Semana próxima ➡️", offset: 14 }
+    ];
+
+    function construirDiasSemana(offsetDias) {
+        const dias = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(lunesInicio);
+            d.setDate(d.getDate() + offsetDias + i);
+            dias.push({
+                fecha: toLocalDateString(d),
+                nombreDia: DIAS_SEMANA[i],
+                numeroDia: d.getDate(),
+                mesCorto: d.toLocaleDateString("es-ES", { month: "short" })
+            });
+        }
+        return dias;
+    }
+
+    function renderCalendario() {
+        const wrap = document.getElementById("semanas");
+
+        wrap.innerHTML = semanasInfo.map(semana => {
+            const dias = construirDiasSemana(semana.offset);
+            return `
+                <div>
+                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">${semana.titulo}</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                        ${dias.map(d => renderDiaCard(d)).join("")}
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    function renderDiaCard(d) {
+        const info = comidas[d.fecha] || {};
+        const esHoy = d.fecha === hoyStr;
+
+        return `
+            <div onclick="abrirModalDia('${d.fecha}')"
+                 class="cursor-pointer rounded-xl p-3 border transition hover:shadow-md ${esHoy ? "border-rose-500 bg-rose-50 ring-2 ring-rose-300" : "border-gray-100 bg-gray-50 hover:bg-rose-50"}">
+                <p class="text-xs font-bold text-gray-500 uppercase">${d.nombreDia}</p>
+                <p class="text-lg font-bold text-gray-800 mb-1">${d.numeroDia} <span class="text-xs font-normal text-gray-400">${d.mesCorto}</span></p>
+                <p class="text-xs text-gray-600 truncate">🌞 ${info.comida ? escapeHtml(info.comida) : "—"}</p>
+                <p class="text-xs text-gray-600 truncate">🌙 ${info.cena ? escapeHtml(info.cena) : "—"}</p>
+            </div>
+        `;
+    }
+
+    // ================= Modal día =================
+    window.abrirModalDia = function (fecha) {
+        diaActual = fecha;
+        const info = comidas[fecha] || {};
+
+        const d = new Date(fecha + "T00:00:00");
+        const tituloFecha = d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+        document.getElementById("modalDiaTitulo").textContent = tituloFecha.charAt(0).toUpperCase() + tituloFecha.slice(1);
+
+        document.getElementById("inputComida").value = info.comida || "";
+        document.getElementById("inputCena").value = info.cena || "";
+        document.getElementById("ideasComida").classList.add("hidden");
+        document.getElementById("ideasCena").classList.add("hidden");
+
+        document.getElementById("modalDia").classList.remove("hidden");
+    };
+
+    window.cerrarModalDia = function () {
+        document.getElementById("modalDia").classList.add("hidden");
+        diaActual = null;
+    };
+
+    window.guardarDia = async function () {
+        if (!diaActual) return;
+
+        const comida = document.getElementById("inputComida").value.trim();
+        const cena = document.getElementById("inputCena").value.trim();
+
+        await setDoc(doc(db, "comidas", diaActual), { comida, cena }, { merge: true });
+
+        cerrarModalDia();
+    };
+
+    // ================= Ideas (recetas) dentro del modal =================
+    window.toggleIdeas = function (momento) {
+        const box = document.getElementById(momento === "comida" ? "ideasComida" : "ideasCena");
+        const estaOculto = box.classList.contains("hidden");
+
+        if (!estaOculto) {
+            box.classList.add("hidden");
+            return;
+        }
+
+        if (recetas.length === 0) {
+            box.innerHTML = `<div class="p-3 text-sm text-gray-400 text-center">Todavía no tienes recetas guardadas.</div>`;
+        } else {
+            box.innerHTML = recetas.map(r => `
+                <div onclick='elegirIdea("${momento}", ${JSON.stringify(r.nombre).replace(/'/g, "&apos;")})'
+                     class="p-3 hover:bg-rose-50 cursor-pointer">
+                    <p class="text-sm font-semibold text-gray-800">${escapeHtml(r.nombre)}</p>
+                    <p class="text-xs text-gray-500">${escapeHtml(r.descripcion || "")}</p>
+                </div>
+            `).join("");
+        }
+
+        box.classList.remove("hidden");
+    };
+
+    window.elegirIdea = function (momento, nombreReceta) {
+        const inputId = momento === "comida" ? "inputComida" : "inputCena";
+        document.getElementById(inputId).value = nombreReceta;
+
+        const boxId = momento === "comida" ? "ideasComida" : "ideasCena";
+        document.getElementById(boxId).classList.add("hidden");
+    };
+
+    // ================= Recetas =================
+    window.guardarReceta = async function () {
+        const nombre = document.getElementById("recetaNombre").value.trim();
+        const descripcion = document.getElementById("recetaDescripcion").value.trim();
+        const ingredientes = document.getElementById("recetaIngredientes").value.trim();
+        const elaboracion = document.getElementById("recetaElaboracion").value.trim();
+
+        if (!nombre) {
+            alert("Ponle un nombre al plato");
+            return;
+        }
+
+        await addDoc(recetasCol, { nombre, descripcion, ingredientes, elaboracion, createdAt: Date.now() });
+
+        document.getElementById("recetaNombre").value = "";
+        document.getElementById("recetaDescripcion").value = "";
+        document.getElementById("recetaIngredientes").value = "";
+        document.getElementById("recetaElaboracion").value = "";
+    };
+
+    window.eliminarReceta = async function (id, event) {
+        event.stopPropagation();
+        if (!confirm("¿Eliminar esta receta?")) return;
+        await deleteDoc(doc(db, "recetas", id));
+    };
+
+    window.toggleDetalleReceta = function (id) {
+        const el = document.getElementById(`detalle-${id}`);
+        if (el) el.classList.toggle("hidden");
+    };
+
+    function renderRecetas() {
+        const list = document.getElementById("recetasList");
+
+        if (recetas.length === 0) {
+            list.innerHTML = `<div class="md:col-span-2 bg-gray-50 rounded-2xl p-8 text-center text-gray-500">Todavía no has guardado ninguna receta.</div>`;
+            return;
+        }
+
+        list.innerHTML = recetas.map(r => `
+            <div class="bg-gray-50 border border-gray-100 rounded-2xl p-4 shadow-sm">
+                <div onclick="toggleDetalleReceta('${r.id}')" class="cursor-pointer flex justify-between items-start gap-2">
+                    <div>
+                        <h4 class="font-bold text-gray-800">${escapeHtml(r.nombre)}</h4>
+                        ${r.descripcion ? `<p class="text-sm text-gray-500">${escapeHtml(r.descripcion)}</p>` : ""}
+                    </div>
+                    <button onclick="eliminarReceta('${r.id}', event)" class="text-red-400 hover:text-red-600 shrink-0">🗑️</button>
+                </div>
+                <div id="detalle-${r.id}" class="hidden mt-3 pt-3 border-t text-sm text-gray-600 space-y-2">
+                    ${r.ingredientes ? `<div><p class="font-semibold text-gray-700">Ingredientes:</p><p class="whitespace-pre-line">${escapeHtml(r.ingredientes)}</p></div>` : ""}
+                    ${r.elaboracion ? `<div><p class="font-semibold text-gray-700">Elaboración:</p><p class="whitespace-pre-line">${escapeHtml(r.elaboracion)}</p></div>` : ""}
+                </div>
+            </div>
+        `).join("");
+    }
+
+    // ================= Escuchas en tiempo real =================
+    onSnapshot(comidasCol, snapshot => {
+        comidas = {};
+        snapshot.docs.forEach(d => { comidas[d.id] = d.data(); });
+        renderCalendario();
+    });
+
+    onSnapshot(query(recetasCol, orderBy("createdAt", "desc")), snapshot => {
+        recetas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderRecetas();
+    });
+
+    mostrarTab("calendario");
+</script>
+
+</body>
+</html>
