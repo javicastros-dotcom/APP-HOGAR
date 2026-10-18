@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regalos</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-fuchsia-100 via-pink-50 to-amber-100 min-h-screen">
+
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+
+        <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8">
+
+            <h1 class="text-4xl font-bold text-center text-fuchsia-700 mb-2">
+                🎁 Regalos
+            </h1>
+
+            <p class="text-center text-gray-500 mb-8">
+                Apunta ideas para cada persona, márcalas al comprarlas y controla el presupuesto
+            </p>
+
+            <!-- ============ VISTA: PERSONAS ============ -->
+            <div id="viewLista">
+
+                <!-- Formulario nueva persona -->
+                <div class="bg-fuchsia-50 rounded-2xl p-5 mb-8">
+
+                    <div class="flex items-center gap-3 mb-3">
+                        <div id="iconoPreview" class="w-14 h-14 rounded-full bg-white shadow flex items-center justify-center text-3xl"></div>
+                        <div class="flex-1">
+                            <p class="text-sm font-semibold text-gray-600">Icono</p>
+                            <input
+                                type="text"
+                                id="iconoCustom"
+                                maxlength="8"
+                                placeholder="Elige uno abajo o escribe tu propio emoji..."
+                                oninput="iconoPersonalizado(this.value)"
+                                class="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+                            >
+                        </div>
+                    </div>
+
+                    <div id="emojiPicker" class="flex flex-wrap gap-2 mb-4"></div>
+
+                    <div class="grid md:grid-cols-3 gap-3">
+                        <input
+                            type="text"
+                            id="personaNombre"
+                            placeholder="Nombre..."
+                            class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+                        >
+                        <input
+                            type="number"
+                            id="personaPresupuesto"
+                            placeholder="Presupuesto estimado (€)"
+                            step="0.01"
+                            min="0"
+                            class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+                        >
+                        <button
+                            onclick="crearPersona()"
+                            class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-semibold py-3 rounded-xl transition shadow-lg"
+                        >
+                            ➕ Añadir persona
+                        </button>
+                    </div>
+                </div>
+
+                <div id="personasGrid" class="grid md:grid-cols-2 gap-5"></div>
+
+            </div>
+
+            <!-- ============ VISTA: DETALLE DE PERSONA ============ -->
+            <div id="viewDetalle" class="hidden">
+
+                <button onclick="volverALista()" class="text-fuchsia-600 hover:text-fuchsia-800 font-semibold mb-4">
+                    ← Volver a las personas
+                </button>
+
+                <div id="detalleCabecera" class="mb-6"></div>
+
+                <div class="flex gap-2 mb-6">
+                    <input
+                        type="text"
+                        id="regaloInput"
+                        placeholder="Añadir idea de regalo..."
+                        class="flex-1 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+                    >
+                    <button
+                        onclick="addRegalo()"
+                        class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white px-5 rounded-xl transition"
+                    >
+                        Añadir
+                    </button>
+                </div>
+
+                <div id="detalleListas" class="space-y-6"></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+        getFirestore, collection, addDoc, updateDoc, deleteDoc, doc,
+        onSnapshot, query, orderBy, where, getDocs, writeBatch
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDT8Zmbv2WNiAem_WpGbQTIFd9skWCkf2Q",
+        authDomain: "javilyn-f9d54.firebaseapp.com",
+        projectId: "javilyn-f9d54",
+        storageBucket: "javilyn-f9d54.firebasestorage.app",
+        messagingSenderId: "961900478002",
+        appId: "1:961900478002:web:652e75b65010a46f4f462b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const personasCol = collection(db, "regalosPersonas");
+    const regalosCol = collection(db, "regalos");
+
+    const EMOJIS = ["👩", "👨", "👧", "👦", "👵", "👴", "👶", "🧑", "🧔", "🎅", "🤶", "🐶", "🐱", "🐻", "🦊", "🐼", "🦄", "⭐", "❤️", "🎮", "⚽", "🎨", "🎸", "🌸"];
+
+    let personas = [];
+    let regalos = [];
+    let personaActualId = null;
+    let iconoElegido = "🧑";
+
+    // ================= Utilidades =================
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function formatMoney(n) {
+        return n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+    }
+
+    function parseImporte(texto) {
+        return parseFloat(String(texto).replace(",", "."));
+    }
+
+    function primerGrafema(texto) {
+        if (window.Intl && Intl.Segmenter) {
+            const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+            for (const parte of seg.segment(texto)) return parte.segment;
+        }
+        return Array.from(texto)[0];
+    }
+
+    function statsDe(persona) {
+        const suyos = regalos.filter(r => r.personaId === persona.id);
+        const comprados = suyos.filter(r => r.comprado);
+        const gastado = comprados.reduce((suma, r) => suma + (r.precio || 0), 0);
+        const presupuesto = persona.presupuesto || 0;
+        return {
+            ideas: suyos.length - comprados.length,
+            comprados: comprados.length,
+            presupuesto,
+            gastado,
+            restante: presupuesto - gastado
+        };
+    }
+
+    function barraProgreso(s) {
+        let pct = 0;
+        if (s.presupuesto > 0) pct = Math.min(100, (s.gastado / s.presupuesto) * 100);
+        else if (s.gastado > 0) pct = 100;
+        const color = s.restante < 0 ? "bg-red-500" : "bg-fuchsia-500";
+        return `
+            <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div class="${color} h-2 rounded-full" style="width:${pct}%"></div>
+            </div>
+        `;
+    }
+
+    function bloqueStats(s) {
+        const colorRestante = s.restante < 0 ? "text-red-600" : "text-emerald-600";
+        return `
+            <div class="grid grid-cols-3 gap-2 text-center mb-3">
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-gray-400">Estimado</p>
+                    <p class="font-bold text-gray-700 text-sm">${formatMoney(s.presupuesto)}</p>
+                </div>
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-gray-400">Gastado</p>
+                    <p class="font-bold text-fuchsia-700 text-sm">${formatMoney(s.gastado)}</p>
+                </div>
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-gray-400">Restante</p>
+                    <p class="font-bold ${colorRestante} text-sm">${formatMoney(s.restante)}</p>
+                </div>
+            </div>
+            ${barraProgreso(s)}
+        `;
+    }
+
+    // ================= Selector de icono =================
+    function renderEmojiPicker() {
+        document.getElementById("emojiPicker").innerHTML = EMOJIS.map(e => `
+            <button type="button" onclick="elegirIcono('${e}')"
+                    class="text-2xl w-11 h-11 rounded-xl transition ${e === iconoElegido ? "bg-fuchsia-600 ring-2 ring-fuchsia-300" : "bg-white hover:bg-fuchsia-100"}">
+                ${e}
+            </button>
+        `).join("");
+        document.getElementById("iconoPreview").textContent = iconoElegido;
+    }
+
+    window.elegirIcono = function (emoji) {
+        iconoElegido = emoji;
+        document.getElementById("iconoCustom").value = "";
+        renderEmojiPicker();
+    };
+
+    window.iconoPersonalizado = function (valor) {
+        const texto = valor.trim();
+        if (!texto) return;
+        iconoElegido = primerGrafema(texto);
+        renderEmojiPicker();
+    };
+
+    // ================= Personas =================
+    window.crearPersona = async function () {
+        const nombreInput = document.getElementById("personaNombre");
+        const presupuestoInput = document.getElementById("personaPresupuesto");
+
+        const nombre = nombreInput.value.trim();
+        const presupuesto = parseImporte(presupuestoInput.value);
+
+        if (!nombre) {
+            alert("Escribe el nombre de la persona");
+            return;
+        }
+        if (isNaN(presupuesto) || presupuesto < 0) {
+            alert("Introduce un presupuesto estimado válido");
+            return;
+        }
+
+        await addDoc(personasCol, { nombre, icono: iconoElegido, presupuesto, createdAt: Date.now() });
+
+        nombreInput.value = "";
+        presupuestoInput.value = "";
+    };
+
+    window.eliminarPersona = async function () {
+        const persona = personas.find(p => p.id === personaActualId);
+        if (!persona) return;
+        if (!confirm(`¿Eliminar a ${persona.nombre} y todos sus regalos?`)) return;
+
+        const snap = await getDocs(query(regalosCol, where("personaId", "==", persona.id)));
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+
+        await deleteDoc(doc(db, "regalosPersonas", persona.id));
+        volverALista();
+    };
+
+    window.editarPresupuesto = async function () {
+        const persona = personas.find(p => p.id === personaActualId);
+        if (!persona) return;
+
+        const entrada = prompt(`Nuevo presupuesto estimado para ${persona.nombre} (€):`, persona.presupuesto);
+        if (entrada === null) return;
+
+        const nuevo = parseImporte(entrada);
+        if (isNaN(nuevo) || nuevo < 0) {
+            alert("Presupuesto no válido");
+            return;
+        }
+
+        await updateDoc(doc(db, "regalosPersonas", persona.id), { presupuesto: nuevo });
+    };
+
+    function renderPersonas() {
+        const grid = document.getElementById("personasGrid");
+
+        if (personas.length === 0) {
+            grid.innerHTML = `
+                <div class="md:col-span-2 bg-gray-50 rounded-2xl p-8 text-center text-gray-500">
+                    Todavía no has añadido a nadie. ¡Empieza por la primera persona!
+                </div>
+            `;
+            return;
+        }
+
+        grid.innerHTML = personas.map(p => {
+            const s = statsDe(p);
+            return `
+                <div onclick="abrirPersona('${p.id}')"
+                     class="cursor-pointer bg-gray-50 hover:bg-fuchsia-50 border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-16 h-16 rounded-full bg-fuchsia-100 flex items-center justify-center text-4xl shrink-0">${escapeHtml(p.icono || "🧑")}</div>
+                        <div class="min-w-0">
+                            <h3 class="text-lg font-bold text-gray-800 truncate">${escapeHtml(p.nombre)}</h3>
+                            <p class="text-xs text-gray-500">💡 ${s.ideas} ideas · ✅ ${s.comprados} comprados</p>
+                        </div>
+                    </div>
+                    ${bloqueStats(s)}
+                </div>
+            `;
+        }).join("");
+    }
+
+    // ================= Detalle de persona =================
+    window.abrirPersona = function (id) {
+        personaActualId = id;
+        document.getElementById("viewLista").classList.add("hidden");
+        document.getElementById("viewDetalle").classList.remove("hidden");
+        renderDetalle();
+    };
+
+    window.volverALista = function () {
+        personaActualId = null;
+        document.getElementById("viewDetalle").classList.add("hidden");
+        document.getElementById("viewLista").classList.remove("hidden");
+    };
+
+    function renderDetalle() {
+        if (!personaActualId) return;
+
+        const persona = personas.find(p => p.id === personaActualId);
+        if (!persona) {
+            volverALista();
+            return;
+        }
+
+        const s = statsDe(persona);
+
+        document.getElementById("detalleCabecera").innerHTML = `
+            <div class="bg-fuchsia-50 rounded-2xl p-5">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-16 h-16 rounded-full bg-white shadow flex items-center justify-center text-4xl shrink-0">${escapeHtml(persona.icono || "🧑")}</div>
+                    <h2 class="flex-1 text-2xl font-bold text-gray-800 min-w-0 truncate">${escapeHtml(persona.nombre)}</h2>
+                    <div class="flex gap-2 shrink-0">
+                        <button onclick="editarPresupuesto()" class="bg-white hover:bg-gray-100 border text-gray-700 text-sm px-3 py-2 rounded-lg transition">✏️ Presupuesto</button>
+                        <button onclick="eliminarPersona()" class="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-2 rounded-lg transition">🗑️</button>
+                    </div>
+                </div>
+                ${bloqueStats(s)}
+            </div>
+        `;
+
+        const suyos = regalos
+            .filter(r => r.personaId === persona.id)
+            .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+        const ideas = suyos.filter(r => !r.comprado);
+        const comprados = suyos.filter(r => r.comprado);
+
+        document.getElementById("detalleListas").innerHTML = `
+            <div>
+                <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">💡 Ideas (${ideas.length})</h3>
+                <div class="space-y-2">
+                    ${ideas.length === 0
+                        ? `<div class="bg-gray-50 rounded-xl p-5 text-center text-gray-400 text-sm">No hay ideas pendientes.</div>`
+                        : ideas.map(r => itemRegalo(r)).join("")}
+                </div>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">✅ Comprados (${comprados.length})</h3>
+                <div class="space-y-2">
+                    ${comprados.length === 0
+                        ? `<div class="bg-gray-50 rounded-xl p-5 text-center text-gray-400 text-sm">Todavía no has comprado nada.</div>`
+                        : comprados.map(r => itemRegalo(r)).join("")}
+                </div>
+            </div>
+        `;
+    }
+
+    function itemRegalo(r) {
+        return `
+            <div class="flex items-center gap-3 bg-gray-50 p-3 rounded-xl shadow-sm">
+                <input type="checkbox" class="w-5 h-5 accent-fuchsia-600 shrink-0" ${r.comprado ? "checked" : ""}
+                       onchange="toggleRegalo('${r.id}')">
+                <span class="flex-1 text-gray-700 ${r.comprado ? "line-through text-gray-400" : ""}">${escapeHtml(r.texto)}</span>
+                ${r.comprado ? `<span class="px-3 py-1 rounded-full bg-fuchsia-100 text-fuchsia-800 text-sm font-semibold shrink-0">${formatMoney(r.precio || 0)}</span>` : ""}
+                <button onclick="eliminarRegalo('${r.id}')" class="text-red-400 hover:text-red-600 shrink-0">🗑️</button>
+            </div>
+        `;
+    }
+
+    // ================= Regalos =================
+    window.addRegalo = async function () {
+        const input = document.getElementById("regaloInput");
+        const texto = input.value.trim();
+        if (!texto || !personaActualId) return;
+
+        input.value = "";
+        await addDoc(regalosCol, {
+            personaId: personaActualId,
+            texto,
+            comprado: false,
+            precio: null,
+            createdAt: Date.now()
+        });
+    };
+
+    window.toggleRegalo = async function (id) {
+        const regalo = regalos.find(r => r.id === id);
+        if (!regalo) return;
+
+        if (!regalo.comprado) {
+            // Idea -> comprado: pedir el precio
+            const entrada = prompt(`¿Cuánto ha costado "${regalo.texto}"? (€)`);
+            if (entrada === null) { renderDetalle(); return; }
+
+            const precio = parseImporte(entrada);
+            if (isNaN(precio) || precio < 0) {
+                alert("Precio no válido, no se ha marcado como comprado.");
+                renderDetalle();
+                return;
+            }
+
+            await updateDoc(doc(db, "regalos", id), { comprado: true, precio });
+        } else {
+            // Comprado -> idea otra vez
+            if (!confirm(`¿Volver a dejar "${regalo.texto}" como idea? Se quitará su precio.`)) {
+                renderDetalle();
+                return;
+            }
+            await updateDoc(doc(db, "regalos", id), { comprado: false, precio: null });
+        }
+    };
+
+    window.eliminarRegalo = async function (id) {
+        await deleteDoc(doc(db, "regalos", id));
+    };
+
+    document.getElementById("regaloInput").addEventListener("keypress", e => {
+        if (e.key === "Enter") addRegalo();
+    });
+
+    document.getElementById("personaNombre").addEventListener("keypress", e => {
+        if (e.key === "Enter") crearPersona();
+    });
+
+    // ================= Tiempo real =================
+    onSnapshot(query(personasCol, orderBy("createdAt", "asc")), snapshot => {
+        personas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderPersonas();
+        renderDetalle();
+    });
+
+    onSnapshot(regalosCol, snapshot => {
+        regalos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderPersonas();
+        renderDetalle();
+    });
+
+    renderEmojiPicker();
+</script>
+
+</body>
+</html>
