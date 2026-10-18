@@ -17,12 +17,28 @@
                 🎁 Regalos
             </h1>
 
-            <p class="text-center text-gray-500 mb-8">
+            <p class="text-center text-gray-500 mb-6">
                 Apunta ideas para cada persona, márcalas al comprarlas y controla el presupuesto
             </p>
 
+            <!-- Pestañas -->
+            <div class="flex justify-center gap-2 mb-6">
+                <button id="tabRegalosBtn" onclick="mostrarTab('regalos')" class="px-5 py-2 rounded-xl font-semibold transition">
+                    🎁 Regalos
+                </button>
+                <button id="tabCumpleBtn" onclick="mostrarTab('cumpleanos')" class="px-5 py-2 rounded-xl font-semibold transition">
+                    🎂 Cumpleaños
+                </button>
+            </div>
+
             <!-- ============ VISTA: PERSONAS ============ -->
             <div id="viewLista">
+
+                <!-- Selector de año -->
+                <div id="aniosBar" class="flex flex-wrap items-center gap-2 mb-6"></div>
+
+                <!-- Totales del año -->
+                <div id="totales" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8"></div>
 
                 <!-- Formulario nueva persona -->
                 <div class="bg-fuchsia-50 rounded-2xl p-5 mb-8">
@@ -124,13 +140,21 @@
     const db = getFirestore(app);
     const personasCol = collection(db, "regalosPersonas");
     const regalosCol = collection(db, "regalos");
+    const aniosCol = collection(db, "regalosAnios");
 
     const EMOJIS = ["👩", "👨", "👧", "👦", "👵", "👴", "👶", "🧑", "🧔", "🎅", "🤶", "🐶", "🐱", "🐻", "🦊", "🐼", "🦄", "⭐", "❤️", "🎮", "⚽", "🎨", "🎸", "🌸"];
 
+    const ANIO_ACTUAL = new Date().getFullYear();
+
     let personas = [];
     let regalos = [];
+    let anios = []; // años creados explícitamente: { tipo, anio }
     let personaActualId = null;
     let iconoElegido = "🧑";
+
+    // Cada pestaña ("regalos" / "cumpleanos") tiene sus propios datos y su propio año elegido
+    let tabActual = "regalos";
+    const anioSeleccionado = { regalos: null, cumpleanos: null };
 
     // ================= Utilidades =================
     function escapeHtml(str) {
@@ -153,6 +177,42 @@
             for (const parte of seg.segment(texto)) return parte.segment;
         }
         return Array.from(texto)[0];
+    }
+
+    // Las personas anteriores a esta versión no tienen tipo ni año: se tratan como "regalos"
+    // y del año en que se crearon.
+    function tipoDe(p) {
+        return p.tipo || "regalos";
+    }
+
+    function anioDe(p) {
+        if (typeof p.anio === "number") return p.anio;
+        return new Date(p.createdAt || Date.now()).getFullYear();
+    }
+
+    function personasDe(tipo, anio) {
+        return personas.filter(p => tipoDe(p) === tipo && anioDe(p) === anio);
+    }
+
+    function aniosDisponibles(tipo) {
+        const conjunto = new Set([ANIO_ACTUAL]);
+        anios.filter(a => a.tipo === tipo).forEach(a => conjunto.add(a.anio));
+        personas.filter(p => tipoDe(p) === tipo).forEach(p => conjunto.add(anioDe(p)));
+        return [...conjunto].sort((a, b) => b - a);
+    }
+
+    function anioSel() {
+        const disponibles = aniosDisponibles(tabActual);
+        let sel = anioSeleccionado[tabActual];
+        if (sel === null || !disponibles.includes(sel)) {
+            sel = disponibles.includes(ANIO_ACTUAL) ? ANIO_ACTUAL : disponibles[0];
+            anioSeleccionado[tabActual] = sel;
+        }
+        return sel;
+    }
+
+    function personasActuales() {
+        return personasDe(tabActual, anioSel());
     }
 
     function statsDe(persona) {
@@ -202,6 +262,101 @@
         `;
     }
 
+    // ================= Pestañas =================
+    window.mostrarTab = function (tab) {
+        tabActual = tab;
+        volverALista();
+
+        document.getElementById("tabRegalosBtn").className = "px-5 py-2 rounded-xl font-semibold transition " +
+            (tab === "regalos" ? "bg-fuchsia-600 text-white shadow-lg" : "bg-gray-200 text-gray-700 hover:bg-gray-300");
+        document.getElementById("tabCumpleBtn").className = "px-5 py-2 rounded-xl font-semibold transition " +
+            (tab === "cumpleanos" ? "bg-fuchsia-600 text-white shadow-lg" : "bg-gray-200 text-gray-700 hover:bg-gray-300");
+
+        renderTodo();
+    };
+
+    // ================= Años =================
+    function renderAnios() {
+        const disponibles = aniosDisponibles(tabActual);
+        const sel = anioSel();
+
+        document.getElementById("aniosBar").innerHTML = `
+            <span class="text-sm font-semibold text-gray-500 mr-1">Año:</span>
+            ${disponibles.map(a => `
+                <button onclick="elegirAnio(${a})"
+                        class="px-4 py-2 rounded-xl font-semibold transition ${a === sel ? "bg-fuchsia-600 text-white shadow" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}">
+                    ${a}
+                </button>
+            `).join("")}
+            <button onclick="nuevoAnio()"
+                    class="px-4 py-2 rounded-xl font-semibold border-2 border-dashed border-fuchsia-300 text-fuchsia-700 hover:bg-fuchsia-50 transition">
+                ➕ Nuevo año
+            </button>
+        `;
+    }
+
+    window.elegirAnio = function (anio) {
+        anioSeleccionado[tabActual] = anio;
+        renderTodo();
+    };
+
+    window.nuevoAnio = async function () {
+        const disponibles = aniosDisponibles(tabActual);
+        const sugerido = Math.max(...disponibles) + 1;
+
+        const entrada = prompt("¿Qué año quieres crear?", sugerido);
+        if (entrada === null) return;
+
+        const anio = parseInt(entrada, 10);
+        if (isNaN(anio) || anio < 2000 || anio > 2100) {
+            alert("Introduce un año válido (por ejemplo 2027)");
+            return;
+        }
+        if (disponibles.includes(anio)) {
+            alert(`El año ${anio} ya existe, te llevo a él.`);
+            elegirAnio(anio);
+            return;
+        }
+
+        // Año anterior más cercano que tenga personas
+        const anteriores = disponibles
+            .filter(a => a < anio && personasDe(tabActual, a).length > 0)
+            .sort((a, b) => b - a);
+
+        let copiarDe = null;
+        if (anteriores.length > 0) {
+            const previo = anteriores[0];
+            const cuantas = personasDe(tabActual, previo).length;
+            const quiereCopiar = confirm(
+                `¿Quieres copiar las ${cuantas} personas de ${previo} con sus presupuestos al ${anio}?\n\n` +
+                `Aceptar = copiar (sin los regalos)\nCancelar = empezar el año vacío`
+            );
+            if (quiereCopiar) copiarDe = previo;
+        }
+
+        const batch = writeBatch(db);
+        batch.set(doc(db, "regalosAnios", `${tabActual}_${anio}`), { tipo: tabActual, anio });
+
+        if (copiarDe !== null) {
+            const base = Date.now();
+            personasDe(tabActual, copiarDe)
+                .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+                .forEach((p, i) => {
+                    batch.set(doc(personasCol), {
+                        nombre: p.nombre,
+                        icono: p.icono || "🧑",
+                        presupuesto: p.presupuesto || 0,
+                        tipo: tabActual,
+                        anio,
+                        createdAt: base + i
+                    });
+                });
+        }
+
+        anioSeleccionado[tabActual] = anio;
+        await batch.commit();
+    };
+
     // ================= Selector de icono =================
     function renderEmojiPicker() {
         document.getElementById("emojiPicker").innerHTML = EMOJIS.map(e => `
@@ -243,7 +398,14 @@
             return;
         }
 
-        await addDoc(personasCol, { nombre, icono: iconoElegido, presupuesto, createdAt: Date.now() });
+        await addDoc(personasCol, {
+            nombre,
+            icono: iconoElegido,
+            presupuesto,
+            tipo: tabActual,
+            anio: anioSel(),
+            createdAt: Date.now()
+        });
 
         nombreInput.value = "";
         presupuestoInput.value = "";
@@ -279,19 +441,50 @@
         await updateDoc(doc(db, "regalosPersonas", persona.id), { presupuesto: nuevo });
     };
 
+    function renderTotales(lista) {
+        const ids = new Set(lista.map(p => p.id));
+        const presupuesto = lista.reduce((suma, p) => suma + (p.presupuesto || 0), 0);
+        const gastado = regalos
+            .filter(r => r.comprado && ids.has(r.personaId))
+            .reduce((suma, r) => suma + (r.precio || 0), 0);
+        const diferencia = presupuesto - gastado;
+
+        const colorDif = diferencia < 0 ? "text-red-700" : "text-emerald-700";
+        const fondoDif = diferencia < 0 ? "bg-red-100" : "bg-emerald-100";
+        const notaDif = diferencia < 0 ? "te has pasado" : "te queda";
+
+        document.getElementById("totales").innerHTML = `
+            <div class="bg-blue-100 p-4 rounded-xl text-center">
+                <div class="text-2xl font-bold text-blue-700">${formatMoney(presupuesto)}</div>
+                <div class="text-sm text-gray-600">Presupuesto total ${anioSel()}</div>
+            </div>
+            <div class="bg-fuchsia-100 p-4 rounded-xl text-center">
+                <div class="text-2xl font-bold text-fuchsia-700">${formatMoney(gastado)}</div>
+                <div class="text-sm text-gray-600">Gastado total</div>
+            </div>
+            <div class="${fondoDif} p-4 rounded-xl text-center">
+                <div class="text-2xl font-bold ${colorDif}">${formatMoney(diferencia)}</div>
+                <div class="text-sm text-gray-600">Diferencia (${notaDif})</div>
+            </div>
+        `;
+    }
+
     function renderPersonas() {
         const grid = document.getElementById("personasGrid");
+        const lista = personasActuales();
 
-        if (personas.length === 0) {
+        renderTotales(lista);
+
+        if (lista.length === 0) {
             grid.innerHTML = `
                 <div class="md:col-span-2 bg-gray-50 rounded-2xl p-8 text-center text-gray-500">
-                    Todavía no has añadido a nadie. ¡Empieza por la primera persona!
+                    Todavía no has añadido a nadie en ${anioSel()}.
                 </div>
             `;
             return;
         }
 
-        grid.innerHTML = personas.map(p => {
+        grid.innerHTML = lista.map(p => {
             const s = statsDe(p);
             return `
                 <div onclick="abrirPersona('${p.id}')"
@@ -442,20 +635,30 @@
         if (e.key === "Enter") crearPersona();
     });
 
-    // ================= Tiempo real =================
-    onSnapshot(query(personasCol, orderBy("createdAt", "asc")), snapshot => {
-        personas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    // ================= Render general + tiempo real =================
+    function renderTodo() {
+        renderAnios();
         renderPersonas();
         renderDetalle();
+    }
+
+    onSnapshot(query(personasCol, orderBy("createdAt", "asc")), snapshot => {
+        personas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderTodo();
     });
 
     onSnapshot(regalosCol, snapshot => {
         regalos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderPersonas();
-        renderDetalle();
+        renderTodo();
+    });
+
+    onSnapshot(aniosCol, snapshot => {
+        anios = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderTodo();
     });
 
     renderEmojiPicker();
+    mostrarTab("regalos");
 </script>
 
 </body>
