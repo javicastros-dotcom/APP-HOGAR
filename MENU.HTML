@@ -18,46 +18,55 @@
             </h1>
 
             <p class="text-center text-gray-500 mb-6">
-                Planifica comidas y cenas, e inspírate con tus recetas guardadas
+                Planifica comidas y cenas, e inspírate con tus recetas e ideas guardadas
             </p>
 
             <!-- Pestañas -->
-            <div class="flex justify-center gap-2 mb-8">
+            <div class="flex flex-wrap justify-center gap-2 mb-8">
                 <button id="tabCalendarioBtn" onclick="mostrarTab('calendario')" class="px-5 py-2 rounded-xl font-semibold transition">
                     📅 Calendario
+                </button>
+                <button id="tabIdeasCenasBtn" onclick="mostrarTab('ideasCenas')" class="px-5 py-2 rounded-xl font-semibold transition">
+                    🌙 Ideas cenas
                 </button>
                 <button id="tabRecetasBtn" onclick="mostrarTab('recetas')" class="px-5 py-2 rounded-xl font-semibold transition">
                     🍳 Recetas
                 </button>
+                <button id="tabPostresBtn" onclick="mostrarTab('postres')" class="px-5 py-2 rounded-xl font-semibold transition">
+                    🍰 Postres
+                </button>
             </div>
 
-            <!-- ================= VISTA CALENDARIO ================= -->
+            <!-- ================= CALENDARIO ================= -->
             <div id="viewCalendario">
                 <div id="semanas" class="space-y-8"></div>
             </div>
 
-            <!-- ================= VISTA RECETAS ================= -->
-            <div id="viewRecetas" class="hidden">
+            <!-- ================= IDEAS CENAS ================= -->
+            <div id="viewIdeasCenas" class="hidden">
 
                 <div class="bg-rose-50 rounded-2xl p-5 mb-6">
-                    <div class="grid md:grid-cols-2 gap-4 mb-4">
-                        <input type="text" id="recetaNombre" placeholder="Nombre del plato..."
-                               class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-500">
-                        <input type="text" id="recetaDescripcion" placeholder="Descripción breve..."
-                               class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                    <p class="text-sm text-gray-600 mb-3">
+                        Apunta aquí ideas de cena. Aparecerán en "Ver ideas" del recuadro de cena del calendario.
+                    </p>
+                    <div class="flex gap-2">
+                        <input type="text" id="ideaCenaInput" placeholder="Nueva idea de cena..."
+                               class="flex-1 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                        <button onclick="addIdeaCena()" class="bg-rose-600 hover:bg-rose-700 text-white px-5 rounded-xl transition font-semibold">
+                            Añadir
+                        </button>
                     </div>
-                    <textarea id="recetaIngredientes" placeholder="Ingredientes (uno por línea)..." rows="3"
-                              class="w-full border rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
-                    <textarea id="recetaElaboracion" placeholder="Elaboración / pasos..." rows="4"
-                              class="w-full border rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
-                    <button onclick="guardarReceta()" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl transition">
-                        ➕ Guardar receta
-                    </button>
                 </div>
 
-                <div id="recetasList" class="grid md:grid-cols-2 gap-4"></div>
+                <ul id="ideasCenasList" class="space-y-2"></ul>
 
             </div>
+
+            <!-- ================= RECETAS ================= -->
+            <div id="viewRecetas" class="hidden"></div>
+
+            <!-- ================= POSTRES ================= -->
+            <div id="viewPostres" class="hidden"></div>
 
         </div>
 
@@ -67,7 +76,7 @@
     <div id="modalDia" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-lg w-full p-6 relative max-h-[90vh] overflow-y-auto">
             <button onclick="cerrarModalDia()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
-            <h3 id="modalDiaTitulo" class="text-xl font-bold text-gray-800 mb-4"></h3>
+            <h3 id="modalDiaTitulo" class="text-xl font-bold text-gray-800 mb-4 pr-8"></h3>
 
             <div class="mb-5">
                 <div class="flex justify-between items-center mb-1">
@@ -76,7 +85,7 @@
                 </div>
                 <textarea id="inputComida" rows="2" placeholder="¿Qué hay de comer?"
                           class="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
-                <div id="ideasComida" class="hidden mt-2 border rounded-xl divide-y max-h-40 overflow-y-auto"></div>
+                <div id="ideasComida" class="hidden mt-2 border rounded-xl divide-y max-h-48 overflow-y-auto"></div>
             </div>
 
             <div class="mb-5">
@@ -86,7 +95,7 @@
                 </div>
                 <textarea id="inputCena" rows="2" placeholder="¿Qué hay de cenar?"
                           class="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
-                <div id="ideasCena" class="hidden mt-2 border rounded-xl divide-y max-h-40 overflow-y-auto"></div>
+                <div id="ideasCena" class="hidden mt-2 border rounded-xl divide-y max-h-48 overflow-y-auto"></div>
             </div>
 
             <button onclick="guardarDia()" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl transition">
@@ -95,11 +104,32 @@
         </div>
     </div>
 
+    <!-- Modal: ingredientes de la receta elegida (para añadir a la compra) -->
+    <div id="modalIngredientes" class="hidden fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 relative max-h-[90vh] flex flex-col">
+            <button onclick="cerrarPopupIngredientes()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+            <h3 class="text-xl font-bold text-gray-800 mb-1 pr-8">🛒 Ingredientes</h3>
+            <p id="popupSubtitulo" class="text-sm text-gray-500 mb-3"></p>
+
+            <button onclick="marcarTodosIngredientes()" id="popupMarcarTodos"
+                    class="self-start text-xs text-rose-600 hover:text-rose-800 font-semibold mb-2"></button>
+
+            <div id="popupLista" class="flex-1 overflow-y-auto space-y-2 mb-4"></div>
+
+            <button onclick="confirmarIngredientes()" id="popupConfirmarBtn"
+                    class="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl transition mb-2">
+            </button>
+            <button onclick="cerrarPopupIngredientes()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-xl transition">
+                Omitir
+            </button>
+        </div>
+    </div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
         getFirestore, collection, addDoc, deleteDoc, doc, setDoc,
-        onSnapshot, query, orderBy
+        onSnapshot, query, orderBy, getDocs, writeBatch
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -114,12 +144,18 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const comidasCol = collection(db, "comidas");
-    const recetasCol = collection(db, "recetas");
+    const recetasCol = collection(db, "recetas");        // recetas y postres (campo "tipo")
+    const ideasCenasCol = collection(db, "ideasCenas");
+    const itemsCol = collection(db, "items");            // lista de la compra (COMPRA.HTML)
 
-    let comidas = {}; // { "YYYY-MM-DD": { comida, cena } }
-    let recetas = [];
-    let diaActual = null; // fecha del modal abierto
+    let comidas = {};          // { "YYYY-MM-DD": { comida, cena } }
+    let recetas = [];          // recetas y postres juntos
+    let ideasCenas = [];
+    let diaActual = null;
+    const borrador = { receta: [], postre: [] };   // ingredientes del formulario en curso
+    let popup = null;          // { nombre, ingredientes: [], marcados: Set }
 
+    // ================= Utilidades =================
     function escapeHtml(str) {
         const div = document.createElement("div");
         div.textContent = str;
@@ -133,21 +169,47 @@
         return `${year}-${month}-${day}`;
     }
 
-    // ================= Pestañas =================
-    window.mostrarTab = function (tab) {
-        document.getElementById("viewCalendario").classList.toggle("hidden", tab !== "calendario");
-        document.getElementById("viewRecetas").classList.toggle("hidden", tab !== "recetas");
+    function normalizar(texto) {
+        return String(texto).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
 
-        document.getElementById("tabCalendarioBtn").className = "px-5 py-2 rounded-xl font-semibold transition " +
-            (tab === "calendario" ? "bg-rose-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300");
-        document.getElementById("tabRecetasBtn").className = "px-5 py-2 rounded-xl font-semibold transition " +
-            (tab === "recetas" ? "bg-rose-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300");
+    // Las recetas guardadas antes de este cambio no tienen "tipo" (son recetas) y sus
+    // ingredientes eran un texto con una línea por ingrediente.
+    function tipoDeReceta(r) {
+        return r.tipo || "receta";
+    }
+
+    function ingredientesDe(r) {
+        if (Array.isArray(r.ingredientes)) return r.ingredientes.filter(Boolean);
+        if (typeof r.ingredientes === "string") {
+            return r.ingredientes
+                .split("\n")
+                .map(l => l.trim().replace(/^[-•*]\s*/, ""))
+                .filter(Boolean);
+        }
+        return [];
+    }
+
+    // ================= Pestañas =================
+    const TABS = {
+        calendario: { vista: "viewCalendario", boton: "tabCalendarioBtn" },
+        ideasCenas: { vista: "viewIdeasCenas", boton: "tabIdeasCenasBtn" },
+        recetas:    { vista: "viewRecetas",    boton: "tabRecetasBtn" },
+        postres:    { vista: "viewPostres",    boton: "tabPostresBtn" }
     };
 
-    // ================= Calendario: construir 3 semanas =================
+    window.mostrarTab = function (tab) {
+        Object.entries(TABS).forEach(([nombre, ids]) => {
+            document.getElementById(ids.vista).classList.toggle("hidden", nombre !== tab);
+            document.getElementById(ids.boton).className = "px-5 py-2 rounded-xl font-semibold transition " +
+                (nombre === tab ? "bg-rose-600 text-white shadow-lg" : "bg-gray-200 text-gray-700 hover:bg-gray-300");
+        });
+    };
+
+    // ================= Calendario: 3 semanas =================
     function getLunes(d) {
         const date = new Date(d);
-        const dia = date.getDay(); // 0=domingo
+        const dia = date.getDay(); // 0 = domingo
         const diff = (dia === 0 ? -6 : 1) - dia;
         date.setDate(date.getDate() + diff);
         date.setHours(0, 0, 0, 0);
@@ -156,11 +218,10 @@
 
     const DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
     const hoyStr = toLocalDateString(new Date());
-    const lunesActual = getLunes(new Date());
-    const lunesInicio = new Date(lunesActual);
+    const lunesInicio = getLunes(new Date());
     lunesInicio.setDate(lunesInicio.getDate() - 7);
 
-    const semanasInfo = [
+    const SEMANAS = [
         { titulo: "⬅️ Semana anterior", offset: 0 },
         { titulo: "📍 Semana actual", offset: 7 },
         { titulo: "Semana próxima ➡️", offset: 14 }
@@ -181,22 +242,6 @@
         return dias;
     }
 
-    function renderCalendario() {
-        const wrap = document.getElementById("semanas");
-
-        wrap.innerHTML = semanasInfo.map(semana => {
-            const dias = construirDiasSemana(semana.offset);
-            return `
-                <div>
-                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">${semana.titulo}</h3>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-                        ${dias.map(d => renderDiaCard(d)).join("")}
-                    </div>
-                </div>
-            `;
-        }).join("");
-    }
-
     function renderDiaCard(d) {
         const info = comidas[d.fecha] || {};
         const esHoy = d.fecha === hoyStr;
@@ -212,14 +257,25 @@
         `;
     }
 
-    // ================= Modal día =================
+    function renderCalendario() {
+        document.getElementById("semanas").innerHTML = SEMANAS.map(semana => `
+            <div>
+                <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">${semana.titulo}</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                    ${construirDiasSemana(semana.offset).map(renderDiaCard).join("")}
+                </div>
+            </div>
+        `).join("");
+    }
+
+    // ================= Modal de un día =================
     window.abrirModalDia = function (fecha) {
         diaActual = fecha;
         const info = comidas[fecha] || {};
 
         const d = new Date(fecha + "T00:00:00");
-        const tituloFecha = d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
-        document.getElementById("modalDiaTitulo").textContent = tituloFecha.charAt(0).toUpperCase() + tituloFecha.slice(1);
+        const titulo = d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+        document.getElementById("modalDiaTitulo").textContent = titulo.charAt(0).toUpperCase() + titulo.slice(1);
 
         document.getElementById("inputComida").value = info.comida || "";
         document.getElementById("inputCena").value = info.cena || "";
@@ -241,66 +297,322 @@
         const cena = document.getElementById("inputCena").value.trim();
 
         await setDoc(doc(db, "comidas", diaActual), { comida, cena }, { merge: true });
-
         cerrarModalDia();
     };
 
-    // ================= Ideas (recetas) dentro del modal =================
+    // ================= "Ver ideas" dentro del modal =================
+    // Comida -> recetas guardadas. Cena -> listado de la pestaña "Ideas cenas".
     window.toggleIdeas = function (momento) {
         const box = document.getElementById(momento === "comida" ? "ideasComida" : "ideasCena");
-        const estaOculto = box.classList.contains("hidden");
 
-        if (!estaOculto) {
+        if (!box.classList.contains("hidden")) {
             box.classList.add("hidden");
             return;
         }
 
-        if (recetas.length === 0) {
-            box.innerHTML = `<div class="p-3 text-sm text-gray-400 text-center">Todavía no tienes recetas guardadas.</div>`;
+        if (momento === "comida") {
+            const lista = recetas.filter(r => tipoDeReceta(r) === "receta");
+            box.innerHTML = lista.length === 0
+                ? `<div class="p-3 text-sm text-gray-400 text-center">Todavía no tienes recetas guardadas.</div>`
+                : lista.map(r => {
+                    const n = ingredientesDe(r).length;
+                    return `
+                        <div onclick="elegirReceta('${r.id}')" class="p-3 hover:bg-rose-50 cursor-pointer">
+                            <p class="text-sm font-semibold text-gray-800">${escapeHtml(r.nombre)}</p>
+                            ${r.descripcion ? `<p class="text-xs text-gray-500">${escapeHtml(r.descripcion)}</p>` : ""}
+                            ${n > 0 ? `<p class="text-[11px] text-rose-500 mt-1">🛒 ${n} ingrediente${n === 1 ? "" : "s"}</p>` : ""}
+                        </div>
+                    `;
+                }).join("");
         } else {
-            box.innerHTML = recetas.map(r => `
-                <div onclick='elegirIdea("${momento}", ${JSON.stringify(r.nombre).replace(/'/g, "&apos;")})'
-                     class="p-3 hover:bg-rose-50 cursor-pointer">
-                    <p class="text-sm font-semibold text-gray-800">${escapeHtml(r.nombre)}</p>
-                    <p class="text-xs text-gray-500">${escapeHtml(r.descripcion || "")}</p>
-                </div>
-            `).join("");
+            const lista = [...ideasCenas].sort((a, b) => a.texto.localeCompare(b.texto, "es", { sensitivity: "base" }));
+            box.innerHTML = lista.length === 0
+                ? `<div class="p-3 text-sm text-gray-400 text-center">Todavía no has añadido ideas. Añádelas en la pestaña "Ideas cenas".</div>`
+                : lista.map(i => `
+                    <div onclick="elegirIdeaCena('${i.id}')" class="p-3 hover:bg-rose-50 cursor-pointer text-sm text-gray-800">
+                        ${escapeHtml(i.texto)}
+                    </div>
+                `).join("");
         }
 
         box.classList.remove("hidden");
     };
 
-    window.elegirIdea = function (momento, nombreReceta) {
-        const inputId = momento === "comida" ? "inputComida" : "inputCena";
-        document.getElementById(inputId).value = nombreReceta;
+    window.elegirReceta = function (id) {
+        const receta = recetas.find(r => r.id === id);
+        if (!receta) return;
 
-        const boxId = momento === "comida" ? "ideasComida" : "ideasCena";
-        document.getElementById(boxId).classList.add("hidden");
+        document.getElementById("inputComida").value = receta.nombre;
+        document.getElementById("ideasComida").classList.add("hidden");
+
+        abrirPopupIngredientes(receta);
     };
 
-    // ================= Recetas =================
-    window.guardarReceta = async function () {
-        const nombre = document.getElementById("recetaNombre").value.trim();
-        const descripcion = document.getElementById("recetaDescripcion").value.trim();
-        const ingredientes = document.getElementById("recetaIngredientes").value.trim();
-        const elaboracion = document.getElementById("recetaElaboracion").value.trim();
+    window.elegirIdeaCena = function (id) {
+        const idea = ideasCenas.find(i => i.id === id);
+        if (!idea) return;
 
-        if (!nombre) {
-            alert("Ponle un nombre al plato");
+        document.getElementById("inputCena").value = idea.texto;
+        document.getElementById("ideasCena").classList.add("hidden");
+    };
+
+    // ================= Popup de ingredientes -> lista de la compra =================
+    function abrirPopupIngredientes(receta) {
+        const ingredientes = ingredientesDe(receta);
+        if (ingredientes.length === 0) return;
+
+        popup = { nombre: receta.nombre, ingredientes, marcados: new Set() };
+        renderPopup();
+        document.getElementById("modalIngredientes").classList.remove("hidden");
+    }
+
+    function renderPopup() {
+        if (!popup) return;
+
+        document.getElementById("popupSubtitulo").textContent =
+            `${popup.nombre} · marca los que necesitas comprar`;
+
+        document.getElementById("popupLista").innerHTML = popup.ingredientes.map((ing, i) => `
+            <label class="flex items-center gap-3 bg-gray-50 hover:bg-rose-50 p-3 rounded-xl cursor-pointer">
+                <input type="checkbox" class="w-5 h-5 accent-rose-600 shrink-0"
+                       ${popup.marcados.has(i) ? "checked" : ""} onchange="toggleIngrediente(${i})">
+                <span class="text-gray-700">${escapeHtml(ing)}</span>
+            </label>
+        `).join("");
+
+        const n = popup.marcados.size;
+        const btn = document.getElementById("popupConfirmarBtn");
+        btn.textContent = n === 0 ? "🛒 Marca algún ingrediente" : `🛒 Añadir ${n} a la compra`;
+        btn.disabled = n === 0;
+        btn.classList.toggle("opacity-50", n === 0);
+        btn.classList.toggle("cursor-not-allowed", n === 0);
+
+        document.getElementById("popupMarcarTodos").textContent =
+            n === popup.ingredientes.length ? "Desmarcar todos" : "Marcar todos";
+    }
+
+    window.toggleIngrediente = function (i) {
+        if (!popup) return;
+        if (popup.marcados.has(i)) popup.marcados.delete(i);
+        else popup.marcados.add(i);
+        renderPopup();
+    };
+
+    window.marcarTodosIngredientes = function () {
+        if (!popup) return;
+        if (popup.marcados.size === popup.ingredientes.length) {
+            popup.marcados.clear();
+        } else {
+            popup.ingredientes.forEach((_, i) => popup.marcados.add(i));
+        }
+        renderPopup();
+    };
+
+    window.cerrarPopupIngredientes = function () {
+        document.getElementById("modalIngredientes").classList.add("hidden");
+        popup = null;
+    };
+
+    window.confirmarIngredientes = async function () {
+        if (!popup || popup.marcados.size === 0) return;
+
+        const elegidos = popup.ingredientes.filter((_, i) => popup.marcados.has(i));
+        const btn = document.getElementById("popupConfirmarBtn");
+        btn.disabled = true;
+        btn.textContent = "Añadiendo...";
+
+        try {
+            // No duplicar lo que ya está pendiente de comprar en la lista
+            const existentes = await getDocs(itemsCol);
+            const vistos = new Set(
+                existentes.docs
+                    .map(d => d.data())
+                    .filter(it => !it.checked && it.text)
+                    .map(it => normalizar(it.text))
+            );
+
+            const nuevos = [];
+            let omitidos = 0;
+            elegidos.forEach(texto => {
+                const clave = normalizar(texto);
+                if (vistos.has(clave)) {
+                    omitidos++;
+                } else {
+                    vistos.add(clave);
+                    nuevos.push(texto);
+                }
+            });
+
+            if (nuevos.length > 0) {
+                const batch = writeBatch(db);
+                const base = Date.now();
+                nuevos.forEach((texto, i) => {
+                    batch.set(doc(itemsCol), { text: texto, checked: false, createdAt: base + i });
+                });
+                await batch.commit();
+            }
+
+            cerrarPopupIngredientes();
+
+            if (nuevos.length === 0) {
+                alert("Todos esos ingredientes ya estaban en la lista de la compra.");
+            } else {
+                alert(
+                    `Añadidos ${nuevos.length} ingrediente${nuevos.length === 1 ? "" : "s"} a la lista de la compra ✅` +
+                    (omitidos > 0 ? `\n(${omitidos} ya estaba${omitidos === 1 ? "" : "n"} en la lista)` : "")
+                );
+            }
+        } catch (err) {
+            console.error(err);
+            alert("No se han podido añadir los ingredientes. Inténtalo de nuevo.");
+            renderPopup();
+        }
+    };
+
+    // ================= Ideas cenas (listado simple) =================
+    window.addIdeaCena = async function () {
+        const input = document.getElementById("ideaCenaInput");
+        const texto = input.value.trim();
+        if (!texto) return;
+
+        input.value = "";
+        await addDoc(ideasCenasCol, { texto, createdAt: Date.now() });
+    };
+
+    window.eliminarIdeaCena = async function (id) {
+        await deleteDoc(doc(db, "ideasCenas", id));
+    };
+
+    function renderIdeasCenas() {
+        const ul = document.getElementById("ideasCenasList");
+
+        if (ideasCenas.length === 0) {
+            ul.innerHTML = `<li class="bg-gray-50 rounded-2xl p-8 text-center text-gray-500">Todavía no has añadido ideas de cena.</li>`;
             return;
         }
 
-        await addDoc(recetasCol, { nombre, descripcion, ingredientes, elaboracion, createdAt: Date.now() });
+        const lista = [...ideasCenas].sort((a, b) => a.texto.localeCompare(b.texto, "es", { sensitivity: "base" }));
+        ul.innerHTML = lista.map(i => `
+            <li class="flex items-center justify-between bg-gray-50 p-3 rounded-xl shadow-sm">
+                <span class="text-gray-700">🌙 ${escapeHtml(i.texto)}</span>
+                <button onclick="eliminarIdeaCena('${i.id}')" class="text-red-500 hover:text-red-700 font-semibold">Eliminar</button>
+            </li>
+        `).join("");
+    }
 
-        document.getElementById("recetaNombre").value = "";
-        document.getElementById("recetaDescripcion").value = "";
-        document.getElementById("recetaIngredientes").value = "";
-        document.getElementById("recetaElaboracion").value = "";
+    // ================= Recetas y postres (misma pantalla, distinto tipo) =================
+    const TEXTOS = {
+        receta: { vista: "viewRecetas", nombre: "Nombre del plato...", guardar: "➕ Guardar receta", vacio: "Todavía no has guardado ninguna receta.", confirmar: "¿Eliminar esta receta?" },
+        postre: { vista: "viewPostres", nombre: "Nombre del postre...", guardar: "➕ Guardar postre", vacio: "Todavía no has guardado ningún postre.", confirmar: "¿Eliminar este postre?" }
+    };
+
+    function construirRecetario(tipo) {
+        const t = TEXTOS[tipo];
+
+        document.getElementById(t.vista).innerHTML = `
+            <div class="bg-rose-50 rounded-2xl p-5 mb-6">
+                <div class="grid md:grid-cols-2 gap-4 mb-4">
+                    <input type="text" id="${tipo}-nombre" placeholder="${t.nombre}"
+                           class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                    <input type="text" id="${tipo}-descripcion" placeholder="Descripción breve..."
+                           class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                </div>
+
+                <p class="text-sm font-semibold text-gray-600 mb-2">Ingredientes</p>
+                <div class="flex gap-2 mb-2">
+                    <input type="text" id="${tipo}-ingrediente" placeholder="Escribe un ingrediente y pulsa Enter..."
+                           class="flex-1 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                    <button onclick="addIngredienteBorrador('${tipo}')" class="bg-rose-100 hover:bg-rose-200 text-rose-700 px-4 rounded-xl transition font-semibold">
+                        Añadir
+                    </button>
+                </div>
+                <div id="${tipo}-borrador" class="flex flex-wrap gap-2 mb-4"></div>
+
+                <textarea id="${tipo}-elaboracion" placeholder="Elaboración / pasos..." rows="4"
+                          class="w-full border rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
+
+                <button onclick="guardarRecetario('${tipo}')" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl transition">
+                    ${t.guardar}
+                </button>
+            </div>
+
+            <div id="${tipo}-lista" class="grid md:grid-cols-2 gap-4"></div>
+        `;
+
+        document.getElementById(`${tipo}-ingrediente`).addEventListener("keypress", e => {
+            if (e.key === "Enter") addIngredienteBorrador(tipo);
+        });
+
+        renderBorrador(tipo);
+    }
+
+    function volcarIngredientePendiente(tipo) {
+        const input = document.getElementById(`${tipo}-ingrediente`);
+        const texto = input.value.trim();
+        if (!texto) return false;
+
+        borrador[tipo].push(texto);
+        input.value = "";
+        return true;
+    }
+
+    window.addIngredienteBorrador = function (tipo) {
+        if (volcarIngredientePendiente(tipo)) {
+            renderBorrador(tipo);
+        }
+        document.getElementById(`${tipo}-ingrediente`).focus();
+    };
+
+    window.quitarIngredienteBorrador = function (tipo, i) {
+        borrador[tipo].splice(i, 1);
+        renderBorrador(tipo);
+    };
+
+    function renderBorrador(tipo) {
+        document.getElementById(`${tipo}-borrador`).innerHTML = borrador[tipo].map((ing, i) => `
+            <span class="inline-flex items-center gap-1 bg-white border rounded-full pl-3 pr-1 py-1 text-sm text-gray-700">
+                ${escapeHtml(ing)}
+                <button onclick="quitarIngredienteBorrador('${tipo}', ${i})"
+                        class="w-5 h-5 rounded-full text-gray-400 hover:text-white hover:bg-red-500 leading-none transition">&times;</button>
+            </span>
+        `).join("");
+    }
+
+    window.guardarRecetario = async function (tipo) {
+        volcarIngredientePendiente(tipo);   // por si has escrito uno y no has pulsado Añadir
+
+        const nombre = document.getElementById(`${tipo}-nombre`).value.trim();
+        const descripcion = document.getElementById(`${tipo}-descripcion`).value.trim();
+        const elaboracion = document.getElementById(`${tipo}-elaboracion`).value.trim();
+
+        if (!nombre) {
+            alert(tipo === "postre" ? "Ponle un nombre al postre" : "Ponle un nombre al plato");
+            renderBorrador(tipo);
+            return;
+        }
+
+        await addDoc(recetasCol, {
+            tipo,
+            nombre,
+            descripcion,
+            ingredientes: [...borrador[tipo]],
+            elaboracion,
+            createdAt: Date.now()
+        });
+
+        document.getElementById(`${tipo}-nombre`).value = "";
+        document.getElementById(`${tipo}-descripcion`).value = "";
+        document.getElementById(`${tipo}-elaboracion`).value = "";
+        borrador[tipo] = [];
+        renderBorrador(tipo);
     };
 
     window.eliminarReceta = async function (id, event) {
         event.stopPropagation();
-        if (!confirm("¿Eliminar esta receta?")) return;
+        const receta = recetas.find(r => r.id === id);
+        const tipo = receta ? tipoDeReceta(receta) : "receta";
+        if (!confirm(TEXTOS[tipo].confirmar)) return;
+
         await deleteDoc(doc(db, "recetas", id));
     };
 
@@ -309,32 +621,48 @@
         if (el) el.classList.toggle("hidden");
     };
 
-    function renderRecetas() {
-        const list = document.getElementById("recetasList");
+    function renderRecetario(tipo) {
+        const list = document.getElementById(`${tipo}-lista`);
+        if (!list) return;
 
-        if (recetas.length === 0) {
-            list.innerHTML = `<div class="md:col-span-2 bg-gray-50 rounded-2xl p-8 text-center text-gray-500">Todavía no has guardado ninguna receta.</div>`;
+        const lista = recetas.filter(r => tipoDeReceta(r) === tipo);
+
+        if (lista.length === 0) {
+            list.innerHTML = `<div class="md:col-span-2 bg-gray-50 rounded-2xl p-8 text-center text-gray-500">${TEXTOS[tipo].vacio}</div>`;
             return;
         }
 
-        list.innerHTML = recetas.map(r => `
-            <div class="bg-gray-50 border border-gray-100 rounded-2xl p-4 shadow-sm">
-                <div onclick="toggleDetalleReceta('${r.id}')" class="cursor-pointer flex justify-between items-start gap-2">
-                    <div>
-                        <h4 class="font-bold text-gray-800">${escapeHtml(r.nombre)}</h4>
-                        ${r.descripcion ? `<p class="text-sm text-gray-500">${escapeHtml(r.descripcion)}</p>` : ""}
+        list.innerHTML = lista.map(r => {
+            const ingredientes = ingredientesDe(r);
+            return `
+                <div class="bg-gray-50 border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <div onclick="toggleDetalleReceta('${r.id}')" class="cursor-pointer flex justify-between items-start gap-2">
+                        <div>
+                            <h4 class="font-bold text-gray-800">${escapeHtml(r.nombre)}</h4>
+                            ${r.descripcion ? `<p class="text-sm text-gray-500">${escapeHtml(r.descripcion)}</p>` : ""}
+                        </div>
+                        <button onclick="eliminarReceta('${r.id}', event)" class="text-red-400 hover:text-red-600 shrink-0">🗑️</button>
                     </div>
-                    <button onclick="eliminarReceta('${r.id}', event)" class="text-red-400 hover:text-red-600 shrink-0">🗑️</button>
+                    <div id="detalle-${r.id}" class="hidden mt-3 pt-3 border-t text-sm text-gray-600 space-y-3">
+                        ${ingredientes.length > 0 ? `
+                            <div>
+                                <p class="font-semibold text-gray-700 mb-1">Ingredientes:</p>
+                                <ul class="list-disc list-inside space-y-0.5">
+                                    ${ingredientes.map(i => `<li>${escapeHtml(i)}</li>`).join("")}
+                                </ul>
+                            </div>` : ""}
+                        ${r.elaboracion ? `<div><p class="font-semibold text-gray-700 mb-1">Elaboración:</p><p class="whitespace-pre-line">${escapeHtml(r.elaboracion)}</p></div>` : ""}
+                    </div>
                 </div>
-                <div id="detalle-${r.id}" class="hidden mt-3 pt-3 border-t text-sm text-gray-600 space-y-2">
-                    ${r.ingredientes ? `<div><p class="font-semibold text-gray-700">Ingredientes:</p><p class="whitespace-pre-line">${escapeHtml(r.ingredientes)}</p></div>` : ""}
-                    ${r.elaboracion ? `<div><p class="font-semibold text-gray-700">Elaboración:</p><p class="whitespace-pre-line">${escapeHtml(r.elaboracion)}</p></div>` : ""}
-                </div>
-            </div>
-        `).join("");
+            `;
+        }).join("");
     }
 
-    // ================= Escuchas en tiempo real =================
+    document.getElementById("ideaCenaInput").addEventListener("keypress", e => {
+        if (e.key === "Enter") addIdeaCena();
+    });
+
+    // ================= Tiempo real =================
     onSnapshot(comidasCol, snapshot => {
         comidas = {};
         snapshot.docs.forEach(d => { comidas[d.id] = d.data(); });
@@ -343,9 +671,17 @@
 
     onSnapshot(query(recetasCol, orderBy("createdAt", "desc")), snapshot => {
         recetas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderRecetas();
+        renderRecetario("receta");
+        renderRecetario("postre");
     });
 
+    onSnapshot(ideasCenasCol, snapshot => {
+        ideasCenas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderIdeasCenas();
+    });
+
+    construirRecetario("receta");
+    construirRecetario("postre");
     mostrarTab("calendario");
 </script>
 

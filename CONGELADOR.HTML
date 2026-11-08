@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Congelador</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-cyan-100 via-sky-50 to-indigo-100 min-h-screen">
+
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+
+        <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8">
+
+            <h1 class="text-4xl font-bold text-center text-cyan-700 mb-2">
+                🧊 Congelador
+            </h1>
+
+            <p class="text-center text-gray-500 mb-8">
+                Controla qué tienes congelado, cuánto queda y desde cuándo
+            </p>
+
+            <!-- Formulario nuevo producto -->
+            <div class="bg-cyan-50 rounded-2xl p-5 mb-8">
+
+                <div class="flex items-center gap-3 mb-3">
+                    <div id="iconoPreview" class="w-14 h-14 rounded-full bg-white shadow flex items-center justify-center text-3xl"></div>
+                    <div class="flex-1">
+                        <p class="text-sm font-semibold text-gray-600">Icono</p>
+                        <input
+                            type="text"
+                            id="iconoCustom"
+                            maxlength="8"
+                            placeholder="Elige uno abajo o escribe tu propio emoji..."
+                            oninput="iconoPersonalizado(this.value)"
+                            class="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        >
+                    </div>
+                </div>
+
+                <div id="emojiPicker" class="flex flex-wrap gap-2 mb-4"></div>
+
+                <div class="grid md:grid-cols-4 gap-3">
+                    <input
+                        type="text"
+                        id="prodNombre"
+                        placeholder="Producto..."
+                        class="md:col-span-2 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    >
+                    <input
+                        type="number"
+                        id="prodCantidad"
+                        placeholder="Cantidad"
+                        value="1"
+                        step="1"
+                        min="1"
+                        class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    >
+                    <input
+                        type="date"
+                        id="prodFecha"
+                        class="border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    >
+                </div>
+
+                <button
+                    onclick="addProducto()"
+                    class="w-full mt-3 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-3 rounded-xl transition shadow-lg"
+                >
+                    ➕ Añadir al congelador
+                </button>
+            </div>
+
+            <!-- Resumen y orden -->
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+                <div id="resumen" class="flex flex-wrap gap-2"></div>
+
+                <select
+                    id="ordenSelect"
+                    onchange="cambiarOrden(this.value)"
+                    class="border rounded-xl px-3 py-2 text-sm text-gray-700"
+                >
+                    <option value="antiguos">Más antiguos primero</option>
+                    <option value="recientes">Más recientes primero</option>
+                    <option value="az">Nombre A–Z</option>
+                </select>
+            </div>
+
+            <!-- Lista -->
+            <div id="productosGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+        </div>
+
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+        getFirestore, collection, addDoc, updateDoc, deleteDoc, doc,
+        onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDT8Zmbv2WNiAem_WpGbQTIFd9skWCkf2Q",
+        authDomain: "javilyn-f9d54.firebaseapp.com",
+        projectId: "javilyn-f9d54",
+        storageBucket: "javilyn-f9d54.firebasestorage.app",
+        messagingSenderId: "961900478002",
+        appId: "1:961900478002:web:652e75b65010a46f4f462b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const congeladorCol = collection(db, "congelador");
+
+    const EMOJIS = ["🥩", "🍗", "🍖", "🐟", "🍤", "🦐", "🥦", "🌽", "🥕", "🥬", "🍕", "🍟", "🍔", "🥟", "🍲", "🥘", "🍝", "🍞", "🥐", "🧀", "🍦", "🍨", "🍓", "🍌", "🧁", "🥫"];
+
+    let productos = [];
+    let iconoElegido = "🥩";
+    let orden = "antiguos";
+
+    // ================= Utilidades =================
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // Fecha local en formato YYYY-MM-DD (evita el desfase de UTC de toISOString)
+    function toLocalDateString(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    function formatFecha(fechaStr) {
+        if (!fechaStr) return "—";
+        const [y, m, d] = fechaStr.split("-");
+        return `${d}/${m}/${y}`;
+    }
+
+    function diasDesde(fechaStr) {
+        if (!fechaStr) return null;
+        const [y, m, d] = fechaStr.split("-").map(Number);
+        const fecha = new Date(y, m - 1, d);
+        const hoy = new Date();
+        const hoySinHora = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        return Math.round((hoySinHora - fecha) / 86400000);
+    }
+
+    function haceCuanto(dias) {
+        if (dias === null) return "sin fecha";
+        if (dias < 0) return dias === -1 ? "mañana" : `en ${-dias} días`;
+        if (dias === 0) return "hoy";
+        if (dias === 1) return "ayer";
+        if (dias < 14) return `hace ${dias} días`;
+        if (dias < 60) return `hace ${Math.floor(dias / 7)} semanas`;
+        const meses = Math.floor(dias / 30.44);
+        if (meses < 12) return `hace ${meses} meses`;
+        const anios = Math.floor(meses / 12);
+        return anios === 1 ? "hace 1 año" : `hace ${anios} años`;
+    }
+
+    // Color según la antigüedad: menos de 3 meses, de 3 a 6 meses, más de 6 meses
+    function colorAntiguedad(dias) {
+        if (dias === null || dias < 90) return "bg-cyan-100 text-cyan-800";
+        if (dias < 180) return "bg-amber-100 text-amber-800";
+        return "bg-red-100 text-red-700";
+    }
+
+    function primerGrafema(texto) {
+        if (window.Intl && Intl.Segmenter) {
+            const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+            for (const parte of seg.segment(texto)) return parte.segment;
+        }
+        return Array.from(texto)[0];
+    }
+
+    // ================= Selector de icono =================
+    function renderEmojiPicker() {
+        document.getElementById("emojiPicker").innerHTML = EMOJIS.map(e => `
+            <button type="button" onclick="elegirIcono('${e}')"
+                    class="text-2xl w-11 h-11 rounded-xl transition ${e === iconoElegido ? "bg-cyan-600 ring-2 ring-cyan-300" : "bg-white hover:bg-cyan-100"}">
+                ${e}
+            </button>
+        `).join("");
+        document.getElementById("iconoPreview").textContent = iconoElegido;
+    }
+
+    window.elegirIcono = function (emoji) {
+        iconoElegido = emoji;
+        document.getElementById("iconoCustom").value = "";
+        renderEmojiPicker();
+    };
+
+    window.iconoPersonalizado = function (valor) {
+        const texto = valor.trim();
+        if (!texto) return;
+        iconoElegido = primerGrafema(texto);
+        renderEmojiPicker();
+    };
+
+    // ================= Productos =================
+    window.addProducto = async function () {
+        const nombreInput = document.getElementById("prodNombre");
+        const cantidadInput = document.getElementById("prodCantidad");
+        const fechaInput = document.getElementById("prodFecha");
+
+        const nombre = nombreInput.value.trim();
+        const cantidad = parseInt(cantidadInput.value, 10);
+        const fecha = fechaInput.value;
+
+        if (!nombre) {
+            alert("Escribe el nombre del producto");
+            return;
+        }
+        if (isNaN(cantidad) || cantidad < 1) {
+            alert("Introduce una cantidad válida (1 o más)");
+            return;
+        }
+        if (!fecha) {
+            alert("Selecciona la fecha");
+            return;
+        }
+
+        await addDoc(congeladorCol, {
+            nombre,
+            icono: iconoElegido,
+            cantidad,
+            fecha,
+            createdAt: Date.now()
+        });
+
+        nombreInput.value = "";
+        cantidadInput.value = "1";
+    };
+
+    window.cambiarCantidad = async function (id, delta) {
+        const producto = productos.find(p => p.id === id);
+        if (!producto) return;
+
+        const nueva = (producto.cantidad || 0) + delta;
+
+        if (nueva < 1) {
+            if (confirm(`Es la última unidad de "${producto.nombre}". ¿Eliminarlo del congelador?`)) {
+                await deleteDoc(doc(db, "congelador", id));
+            }
+            return;
+        }
+
+        await updateDoc(doc(db, "congelador", id), { cantidad: nueva });
+    };
+
+    window.eliminarProducto = async function (id) {
+        const producto = productos.find(p => p.id === id);
+        if (!producto) return;
+        if (!confirm(`¿Eliminar "${producto.nombre}" del congelador?`)) return;
+
+        await deleteDoc(doc(db, "congelador", id));
+    };
+
+    window.cambiarOrden = function (valor) {
+        orden = valor;
+        renderProductos();
+    };
+
+    // ================= Render =================
+    function renderProductos() {
+        const grid = document.getElementById("productosGrid");
+
+        const totalProductos = productos.length;
+        const totalUnidades = productos.reduce((suma, p) => suma + (p.cantidad || 0), 0);
+
+        document.getElementById("resumen").innerHTML = `
+            <span class="px-3 py-1 rounded-full bg-cyan-100 text-cyan-800 text-sm font-semibold">🧊 ${totalProductos} productos</span>
+            <span class="px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-sm font-semibold">📦 ${totalUnidades} unidades</span>
+        `;
+
+        if (productos.length === 0) {
+            grid.innerHTML = `
+                <div class="col-span-full bg-gray-50 rounded-2xl p-8 text-center text-gray-500">
+                    El congelador está vacío. ¡Añade el primer producto!
+                </div>
+            `;
+            return;
+        }
+
+        const lista = [...productos];
+        lista.sort((a, b) => {
+            if (orden === "az") {
+                return (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" });
+            }
+            const fa = a.fecha || "";
+            const fb = b.fecha || "";
+            if (fa !== fb) {
+                const cmp = fa < fb ? -1 : 1;
+                return orden === "antiguos" ? cmp : -cmp;
+            }
+            return (a.createdAt || 0) - (b.createdAt || 0);
+        });
+
+        grid.innerHTML = lista.map(p => {
+            const dias = diasDesde(p.fecha);
+            return `
+                <div class="bg-white border border-cyan-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
+                    <div class="flex items-start gap-3">
+                        <div class="w-14 h-14 rounded-xl bg-cyan-50 flex items-center justify-center text-3xl shrink-0">${escapeHtml(p.icono || "🧊")}</div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-bold text-gray-800 truncate">${escapeHtml(p.nombre)}</h3>
+                            <p class="text-xs text-gray-500 mb-1">❄️ Congelado el ${formatFecha(p.fecha)}</p>
+                            <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${colorAntiguedad(dias)}">${haceCuanto(dias)}</span>
+                        </div>
+                        <button onclick="eliminarProducto('${p.id}')" class="text-red-400 hover:text-red-600 shrink-0" title="Eliminar">🗑️</button>
+                    </div>
+
+                    <div class="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                        <span class="text-xs uppercase tracking-wide text-gray-400">Cantidad</span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="cambiarCantidad('${p.id}', -1)"
+                                    class="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-xl leading-none transition">−</button>
+                            <span class="w-10 text-center text-xl font-bold text-cyan-700">${p.cantidad || 0}</span>
+                            <button onclick="cambiarCantidad('${p.id}', 1)"
+                                    class="w-9 h-9 rounded-full bg-cyan-600 hover:bg-cyan-700 text-white text-xl leading-none transition">+</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    document.getElementById("prodNombre").addEventListener("keypress", e => {
+        if (e.key === "Enter") addProducto();
+    });
+
+    // ================= Inicio =================
+    document.getElementById("prodFecha").value = toLocalDateString(new Date());
+    renderEmojiPicker();
+
+    onSnapshot(congeladorCol, snapshot => {
+        productos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderProductos();
+    });
+</script>
+
+</body>
+</html>
