@@ -120,6 +120,39 @@
 
     </div>
 
+    <!-- Modal: marcar un regalo como comprado -->
+    <div id="modalCompra" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 relative">
+            <button onclick="cerrarModalCompra()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+
+            <h3 class="text-xl font-bold text-gray-800 mb-1 pr-8">✅ Marcar como comprado</h3>
+            <p id="compraRegaloNombre" class="text-sm text-gray-500 mb-5"></p>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Precio (€)</label>
+            <input
+                type="text"
+                inputmode="decimal"
+                id="compraPrecio"
+                placeholder="0,00"
+                class="w-full border rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+            >
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">¿Quién se lo compra?</label>
+            <input
+                type="text"
+                id="compraQuien"
+                class="w-full border rounded-xl px-4 py-3 mb-5 focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+            >
+
+            <button onclick="confirmarCompra()" class="w-full bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-semibold py-3 rounded-xl transition">
+                Confirmar compra
+            </button>
+            <button onclick="cerrarModalCompra()" class="w-full mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-xl transition">
+                Cancelar
+            </button>
+        </div>
+    </div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
@@ -573,7 +606,10 @@
             <div class="flex items-center gap-3 bg-gray-50 p-3 rounded-xl shadow-sm">
                 <input type="checkbox" class="w-5 h-5 accent-fuchsia-600 shrink-0" ${r.comprado ? "checked" : ""}
                        onchange="toggleRegalo('${r.id}')">
-                <span class="flex-1 text-gray-700 ${r.comprado ? "line-through text-gray-400" : ""}">${escapeHtml(r.texto)}</span>
+                <div class="flex-1 min-w-0">
+                    <span class="text-gray-700 ${r.comprado ? "line-through text-gray-400" : ""}">${escapeHtml(r.texto)}</span>
+                    ${r.comprado && r.compradoPor ? `<p class="text-xs text-gray-500 mt-0.5">👤 ${escapeHtml(r.compradoPor)}</p>` : ""}
+                </div>
                 ${r.comprado ? `<span class="px-3 py-1 rounded-full bg-fuchsia-100 text-fuchsia-800 text-sm font-semibold shrink-0">${formatMoney(r.precio || 0)}</span>` : ""}
                 <button onclick="eliminarRegalo('${r.id}')" class="text-red-400 hover:text-red-600 shrink-0">🗑️</button>
             </div>
@@ -601,27 +637,67 @@
         if (!regalo) return;
 
         if (!regalo.comprado) {
-            // Idea -> comprado: pedir el precio
-            const entrada = prompt(`¿Cuánto ha costado "${regalo.texto}"? (€)`);
-            if (entrada === null) { renderDetalle(); return; }
-
-            const precio = parseImporte(entrada);
-            if (isNaN(precio) || precio < 0) {
-                alert("Precio no válido, no se ha marcado como comprado.");
-                renderDetalle();
-                return;
-            }
-
-            await updateDoc(doc(db, "regalos", id), { comprado: true, precio });
+            // Idea -> comprado: pedir precio y quién lo compra
+            abrirModalCompra(id);
         } else {
             // Comprado -> idea otra vez
             if (!confirm(`¿Volver a dejar "${regalo.texto}" como idea? Se quitará su precio.`)) {
                 renderDetalle();
                 return;
             }
-            await updateDoc(doc(db, "regalos", id), { comprado: false, precio: null });
+            await updateDoc(doc(db, "regalos", id), { comprado: false, precio: null, compradoPor: null });
         }
     };
+
+    // ---------- Formulario de compra (precio + quién lo compra) ----------
+    const COMPRADOR_POR_DEFECTO = "Cubierto con nosotros";
+    let compraRegaloId = null;
+
+    function abrirModalCompra(id) {
+        const regalo = regalos.find(r => r.id === id);
+        if (!regalo) return;
+
+        compraRegaloId = id;
+        document.getElementById("compraRegaloNombre").textContent = regalo.texto;
+        document.getElementById("compraPrecio").value = "";
+        document.getElementById("compraQuien").value = COMPRADOR_POR_DEFECTO;
+
+        document.getElementById("modalCompra").classList.remove("hidden");
+        document.getElementById("compraPrecio").focus();
+    }
+
+    window.cerrarModalCompra = function () {
+        document.getElementById("modalCompra").classList.add("hidden");
+        compraRegaloId = null;
+        renderDetalle(); // deja el check como estaba si no se confirmó
+    };
+
+    window.confirmarCompra = async function () {
+        const regalo = regalos.find(r => r.id === compraRegaloId);
+        if (!regalo) {
+            cerrarModalCompra();
+            return;
+        }
+
+        const precio = parseImporte(document.getElementById("compraPrecio").value);
+        if (isNaN(precio) || precio < 0) {
+            alert("Introduce un precio válido");
+            return;
+        }
+
+        const compradoPor = document.getElementById("compraQuien").value.trim();
+
+        await updateDoc(doc(db, "regalos", regalo.id), { comprado: true, precio, compradoPor });
+        cerrarModalCompra();
+    };
+
+    document.getElementById("compraPrecio").addEventListener("keypress", e => {
+        if (e.key === "Enter") confirmarCompra();
+    });
+
+    document.getElementById("compraQuien").addEventListener("keypress", e => {
+        if (e.key === "Enter") confirmarCompra();
+    });
 
     window.eliminarRegalo = async function (id) {
         await deleteDoc(doc(db, "regalos", id));
